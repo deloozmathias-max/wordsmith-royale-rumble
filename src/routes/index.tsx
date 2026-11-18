@@ -1,23 +1,152 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
+import { Bot, Globe2, Sparkles, Timer, Users } from "lucide-react";
+import { SiteHeader } from "@/components/game/SiteHeader";
+import { NameField } from "@/components/game/NameField";
+import { usePlayer } from "@/hooks/use-player";
+import { validatePlayerName } from "@/lib/game/filter";
 
-// The home route ships no og:image, so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
-  component: Index,
+  head: () => ({
+    meta: [
+      { title: "Synonym Royale — the 10-player synonym battle" },
+      {
+        name: "description",
+        content: "Find the best English synonym in 20 seconds. Battle 9 bots or real players over 5 rounds and climb the daily leaderboard.",
+      },
+      { property: "og:title", content: "Synonym Royale — the 10-player synonym battle" },
+      {
+        property: "og:description",
+        content: "Find the best English synonym in 20 seconds. 10 players, 5 rounds, one champion.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
+  component: Home,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
+function Home() {
+  const { player, saveName } = usePlayer();
+  const navigate = useNavigate();
+  const [draft, setDraft] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const name = draft ?? player?.name ?? "";
+
+  function go(to: "/play/bots" | "/play/online") {
+    const r = validatePlayerName(name);
+    if (!r.ok) {
+      setError(r.error);
+      return;
+    }
+    saveName(r.value);
+    navigate({ to });
+  }
+
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
+    <div className="arena-bg min-h-screen">
+      <SiteHeader />
+      <main className="mx-auto max-w-5xl px-4 pb-20 pt-10 sm:pt-16">
+        <section className="animate-rise">
+          <p className="kicker">10 players · 5 rounds · 20 seconds</p>
+          <h1 className="mt-4 font-display text-[3.4rem] font-extrabold leading-[0.88] sm:text-[6.5rem]">
+            Say it
+            <br />
+            <span className="text-outline">differently.</span>
+            <br />
+            <span className="text-primary">Win it.</span>
+          </h1>
+          <p className="mt-6 max-w-lg text-lg text-muted-foreground">
+            One English word appears. Type the sharpest synonym before the clock runs out. Pick one nobody else thought
+            of and grab a <span className="font-semibold text-accent">+10 uniqueness bonus</span>.
+          </p>
+        </section>
+
+        <section className="panel animate-rise mt-10 grid gap-8 p-5 sm:p-8 md:grid-cols-[1fr_1.2fr]" style={{ animationDelay: "80ms" }}>
+          <NameField
+            initial={player?.name ?? ""}
+            error={error}
+            onChange={(v) => {
+              setDraft(v);
+              setError(null);
+            }}
+            onUseSuggestion={(v) => {
+              setDraft(v);
+              setError(null);
+            }}
+          />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <ModeCard
+              icon={<Bot className="size-5" />}
+              title="Play vs Bots"
+              text="Start instantly against 9 AI players."
+              cta="Play now"
+              primary
+              onClick={() => go("/play/bots")}
+            />
+            <ModeCard
+              icon={<Globe2 className="size-5" />}
+              title="Online"
+              text="Match with real players. Empty seats fill with bots."
+              cta="Find a match"
+              onClick={() => go("/play/online")}
+            />
+          </div>
+        </section>
+
+        <section className="mt-12 grid gap-3 sm:grid-cols-3">
+          <Rule icon={<Timer className="size-5" />} title="20 seconds" text="Each round shows one word. Lock in a single synonym." />
+          <Rule
+            icon={<Users className="size-5" />}
+            title="Quality counts"
+            text="Perfect 30 · Good 20 · Fair 10. Off-target words score 0."
+          />
+          <Rule
+            icon={<Sparkles className="size-5" />}
+            title="Be unique"
+            text="Nobody else in the round chose your word? +10 bonus."
+          />
+        </section>
+      </main>
+    </div>
+  );
+}
+
+function ModeCard(props: { icon: React.ReactNode; title: string; text: string; cta: string; primary?: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={props.onClick}
+      className={`group flex flex-col justify-between gap-6 rounded-2xl border p-5 text-left transition-all active:scale-[0.98] ${
+        props.primary
+          ? "border-primary bg-primary text-primary-foreground shadow-glow hover:brightness-105"
+          : "border-border bg-secondary/50 hover:border-primary/50 hover:bg-secondary"
+      }`}
     >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
+      <div>
+        <span
+          className={`inline-flex size-10 items-center justify-center rounded-xl ${
+            props.primary ? "bg-primary-foreground/10" : "bg-background/60 text-primary"
+          }`}
+        >
+          {props.icon}
+        </span>
+        <h2 className="mt-4 font-display text-2xl font-bold">{props.title}</h2>
+        <p className={`mt-1 text-sm ${props.primary ? "text-primary-foreground/75" : "text-muted-foreground"}`}>{props.text}</p>
+      </div>
+      <span className="font-display font-bold">
+        {props.cta} <span className="inline-block transition-transform group-hover:translate-x-1">→</span>
+      </span>
+    </button>
+  );
+}
+
+function Rule({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) {
+  return (
+    <div className="rounded-2xl border border-border bg-surface/60 p-5">
+      <span className="text-primary">{icon}</span>
+      <h3 className="mt-3 font-display text-lg font-bold">{title}</h3>
+      <p className="mt-1 text-sm text-muted-foreground">{text}</p>
     </div>
   );
 }

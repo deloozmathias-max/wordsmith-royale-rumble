@@ -28,3 +28,10 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+## Project rules
+- Game logic lives in `src/lib/game/` as pure, deterministic modules (engine, words, filter, rng) shared by client and server; bots and word picks derive from a lobby seed so every client and the server compute identical results without storing bot answers.
+- All database writes go through server functions using the admin client; public tables only expose SELECT to anon, so scores cannot be forged from the browser.
+- Final scores are recomputed on the server (stored answers + seeded bots) before being written to `scores`; never trust a client-sent total.
+- Matchmaking and lobby start are atomic SQL functions (advisory lock); any client may call start once the wait time passes, it is idempotent.
+- Synonym quality: curated tiers first, then cached `judgments`, then the Datamuse API; cache only real results so ratings stay consistent across players.
