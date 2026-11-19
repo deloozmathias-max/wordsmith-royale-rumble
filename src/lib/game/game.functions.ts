@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { judgeAnswer } from "./judge.server";
 import { sanitizePlayerName } from "./filter";
+import { assertPlayer, createPlayerKey } from "./player-auth.server";
 import {
   RESULTS_MS,
   gameEndsAt,
@@ -29,6 +30,16 @@ async function admin() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   return supabaseAdmin;
 }
+
+function readKey(v: unknown): string {
+  return typeof v === "string" ? v.slice(0, 64) : "";
+}
+
+/** Issues a new player identity with a secret key kept only on the player's device. */
+export const registerPlayer = createServerFn({ method: "POST" }).handler(async () => {
+  const db = await admin();
+  return createPlayerKey(db);
+});
 
 export const getServerTime = createServerFn({ method: "GET" }).handler(async () => ({ now: Date.now() }));
 
@@ -78,12 +89,14 @@ export const submitBotsGame = createServerFn({ method: "POST" })
   });
 
 export const joinMatchmaking = createServerFn({ method: "POST" })
-  .inputValidator((d: { playerId: string; name: string }) => ({
+  .inputValidator((d: { playerId: string; playerKey: string; name: string }) => ({
     playerId: assertUuid(d?.playerId, "player"),
+    playerKey: readKey(d?.playerKey),
     name: String(d?.name ?? "").slice(0, 32),
   }))
   .handler(async ({ data }) => {
     const db = await admin();
+    await assertPlayer(db, data.playerId, data.playerKey);
     const seed = Math.floor(Math.random() * 2_000_000_000);
     const { data: lobbyId, error } = await db.rpc("join_matchmaking", {
       p_player_id: data.playerId,
@@ -100,12 +113,14 @@ export const joinMatchmaking = createServerFn({ method: "POST" })
   });
 
 export const leaveLobby = createServerFn({ method: "POST" })
-  .inputValidator((d: { lobbyId: string; playerId: string }) => ({
+  .inputValidator((d: { lobbyId: string; playerId: string; playerKey: string }) => ({
     lobbyId: assertUuid(d?.lobbyId, "lobby"),
     playerId: assertUuid(d?.playerId, "player"),
+    playerKey: readKey(d?.playerKey),
   }))
   .handler(async ({ data }) => {
     const db = await admin();
+    await assertPlayer(db, data.playerId, data.playerKey);
     const { data: lobby } = await db.from("lobbies").select("status").eq("id", data.lobbyId).maybeSingle();
     if (lobby?.status === "waiting") {
       await db.from("lobby_players").delete().eq("lobby_id", data.lobbyId).eq("player_id", data.playerId);
@@ -124,17 +139,19 @@ export const startLobby = createServerFn({ method: "POST" })
   });
 
 export const submitOnlineAnswer = createServerFn({ method: "POST" })
-  .inputValidator((d: { lobbyId: string; playerId: string; round: number; answer: string }) => {
+  .inputValidator((d: { lobbyId: string; playerId: string; playerKey: string; round: number; answer: string }) => {
     if (!Number.isInteger(d?.round) || d.round < 0 || d.round >= ROUNDS) throw new Error("Invalid round");
     return {
       lobbyId: assertUuid(d.lobbyId, "lobby"),
       playerId: assertUuid(d.playerId, "player"),
+      playerKey: readKey(d.playerKey),
       round: d.round,
       answer: String(d.answer ?? "").slice(0, 60),
     };
   })
   .handler(async ({ data }) => {
     const db = await admin();
+    await assertPlayer(db, data.playerId, data.playerKey);
     const [{ data: lobby }, { data: member }] = await Promise.all([
       db.from("lobbies").select("status, starts_at, words").eq("id", data.lobbyId).maybeSingle(),
       db.from("lobby_players").select("id").eq("lobby_id", data.lobbyId).eq("player_id", data.playerId).maybeSingle(),
@@ -165,12 +182,14 @@ export const submitOnlineAnswer = createServerFn({ method: "POST" })
 
 /** Records the final online score, recomputed from stored answers + deterministic bots. */
 export const finishOnlineGame = createServerFn({ method: "POST" })
-  .inputValidator((d: { lobbyId: string; playerId: string }) => ({
+  .inputValidator((d: { lobbyId: string; playerId: string; playerKey: string }) => ({
     lobbyId: assertUuid(d?.lobbyId, "lobby"),
     playerId: assertUuid(d?.playerId, "player"),
+    playerKey: readKey(d?.playerKey),
   }))
   .handler(async ({ data }) => {
     const db = await admin();
+    await assertPlayer(db, data.playerId, data.playerKey);
     const [{ data: lobby }, { data: players }, { data: answers }] = await Promise.all([
       db.from("lobbies").select("*").eq("id", data.lobbyId).maybeSingle(),
       db.from("lobby_players").select("player_id, name").eq("lobby_id", data.lobbyId),

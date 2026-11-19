@@ -8,6 +8,13 @@
       "when": 1795032693481,
       "tag": "0000_synonym_royale_core",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795118153035,
+      "tag": "0001_player_keys",
+      "breakpoints": true
     }
   ]
 }

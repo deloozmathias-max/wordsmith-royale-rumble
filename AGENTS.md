@@ -35,3 +35,4 @@ use the editor.
 - Final scores are recomputed on the server (stored answers + seeded bots) before being written to `scores`; never trust a client-sent total.
 - Matchmaking and lobby start are atomic SQL functions (advisory lock); any client may call start once the wait time passes, it is idempotent.
 - Synonym quality: curated tiers first, then cached `judgments`, then the Datamuse API; cache only real results so ratings stay consistent across players.
+- Player identity: the server issues each player an id plus a secret key (only its hash is stored in `player_keys`); every online server function that acts for a player must call `assertPlayer` before using the caller-supplied player id.

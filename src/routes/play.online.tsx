@@ -50,7 +50,7 @@ function OnlinePage() {
     let cancelled = false;
     setError(null);
     const sent = Date.now();
-    join({ data: { playerId: player.id, name: player.name } })
+    join({ data: { playerId: player.id, playerKey: player.key, name: player.name } })
       .then((r) => {
         if (cancelled) return;
         const latency = (Date.now() - sent) / 2;
@@ -60,7 +60,7 @@ function OnlinePage() {
     return () => {
       cancelled = true;
     };
-  }, [player?.id, player?.name, attempt, join]);
+  }, [player?.id, player?.key, player?.name, attempt, join]);
 
   return (
     <div className="arena-bg min-h-screen">
@@ -87,6 +87,7 @@ function OnlinePage() {
           lobbyId={session.lobbyId}
           offset={session.offset}
           playerId={player.id}
+          playerKey={player.key}
           onPlayAgain={() => {
             setSession(null);
             setAttempt((a) => a + 1);
@@ -111,11 +112,13 @@ function OnlineMatch({
   lobbyId,
   offset,
   playerId,
+  playerKey,
   onPlayAgain,
 }: {
   lobbyId: string;
   offset: number;
   playerId: string;
+  playerKey: string;
   onPlayAgain: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -155,9 +158,9 @@ function OnlineMatch({
   // Leave the lobby if the player walks away while still waiting.
   useEffect(() => {
     return () => {
-      if (statusRef.current === "waiting") leave({ data: { lobbyId, playerId } }).catch(() => {});
+      if (statusRef.current === "waiting") leave({ data: { lobbyId, playerId, playerKey } }).catch(() => {});
     };
-  }, [lobbyId, playerId, leave]);
+  }, [lobbyId, playerId, playerKey, leave]);
 
   // When the wait time is over, any client may trigger the start (bots fill empty seats).
   const fillAt = data?.lobby.fill_at ? new Date(data.lobby.fill_at).getTime() : null;
@@ -207,11 +210,11 @@ function OnlineMatch({
 
   const onSubmit = useCallback(
     async (round: number, text: string, ms: number) => {
-      const res = await submit({ data: { lobbyId, playerId, round, answer: text } });
+      const res = await submit({ data: { lobbyId, playerId, playerKey, round, answer: text } });
       if (res.ok) setMine((m) => ({ ...m, [round]: { answer: res.answer, tier: res.tier, ms } }));
       return res;
     },
-    [submit, lobbyId, playerId],
+    [submit, lobbyId, playerId, playerKey],
   );
 
   const onFinished = useCallback(async () => {
@@ -220,13 +223,13 @@ function OnlineMatch({
     await new Promise((r) => setTimeout(r, 800));
     await queryClient.invalidateQueries({ queryKey: ["lobby", lobbyId] });
     try {
-      const res = await finish({ data: { lobbyId, playerId } });
+      const res = await finish({ data: { lobbyId, playerId, playerKey } });
       setFinalScore(res.score);
     } catch {
       toast.error("Couldn't save your score to the leaderboard.");
       setFinalScore(0);
     }
-  }, [finish, lobbyId, playerId, queryClient]);
+  }, [finish, lobbyId, playerId, playerKey, queryClient]);
 
   if (!data) {
     return (

@@ -141,6 +141,24 @@ export type Database = {
           },
         ]
       }
+      player_keys: {
+        Row: {
+          created_at: string
+          key_hash: string
+          player_id: string
+        }
+        Insert: {
+          created_at?: string
+          key_hash: string
+          player_id: string
+        }
+        Update: {
+          created_at?: string
+          key_hash?: string
+          player_id?: string
+        }
+        Relationships: []
+      }
       scores: {
         Row: {
           created_at: string
