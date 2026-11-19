@@ -4,7 +4,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bot, Loader2, UserRound } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { SiteHeader } from "@/components/game/SiteHeader";
 import { GameView } from "@/components/game/GameView";
 import { Button } from "@/components/ui/button";
@@ -12,6 +11,7 @@ import { usePlayer } from "@/hooks/use-player";
 import { PLAYERS_PER_GAME, botAnswersByRound, makeBots, type Answer, type Player } from "@/lib/game/engine";
 import {
   finishOnlineGame,
+  getLobbyState,
   joinMatchmaking,
   leaveLobby,
   startLobby,
@@ -98,16 +98,6 @@ function OnlinePage() {
   );
 }
 
-async function fetchLobby(lobbyId: string) {
-  const [lobby, players, answers] = await Promise.all([
-    supabase.from("lobbies").select("*").eq("id", lobbyId).single(),
-    supabase.from("lobby_players").select("player_id, name, joined_at").eq("lobby_id", lobbyId).order("joined_at"),
-    supabase.from("answers").select("player_id, round, answer, tier, ms").eq("lobby_id", lobbyId),
-  ]);
-  if (lobby.error) throw lobby.error;
-  return { lobby: lobby.data, players: players.data ?? [], answers: answers.data ?? [] };
-}
-
 function OnlineMatch({
   lobbyId,
   offset,
@@ -127,29 +117,16 @@ function OnlineMatch({
   const leave = useServerFn(leaveLobby);
   const submit = useServerFn(submitOnlineAnswer);
   const finish = useServerFn(finishOnlineGame);
+  const fetchState = useServerFn(getLobbyState);
   const [mine, setMine] = useState<Record<number, Answer>>({});
   const [finalScore, setFinalScore] = useState<number | null>(null);
   const [done, setDone] = useState(false);
 
   const { data } = useQuery({
     queryKey: ["lobby", lobbyId],
-    queryFn: () => fetchLobby(lobbyId),
-    refetchInterval: done ? false : 2000,
+    queryFn: () => fetchState({ data: { lobbyId, playerId, playerKey } }),
+    refetchInterval: done ? false : 1500,
   });
-
-  // Live updates: refetch whenever the lobby, its players or answers change.
-  useEffect(() => {
-    const refresh = () => queryClient.invalidateQueries({ queryKey: ["lobby", lobbyId] });
-    const channel = supabase
-      .channel(`lobby-${lobbyId}-${Math.random().toString(36).slice(2)}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "lobbies", filter: `id=eq.${lobbyId}` }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "lobby_players", filter: `lobby_id=eq.${lobbyId}` }, refresh)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "answers", filter: `lobby_id=eq.${lobbyId}` }, refresh)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [lobbyId, queryClient]);
 
   const status = data?.lobby.status;
   const statusRef = useRef(status);

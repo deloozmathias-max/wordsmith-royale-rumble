@@ -382,7 +382,7 @@ function RoundResults(props: {
                 {isYou && <span className="ml-1 text-primary">(you)</span>}
               </span>
               <span className={`min-w-0 flex-1 truncate font-display text-lg font-bold ${s.answer ? "" : "text-muted-foreground/60"}`}>
-                {s.answer ?? "—"}
+                {s.answer || "—"}
               </span>
               <span className="hidden items-center gap-1.5 sm:flex">
                 {s.answer && (

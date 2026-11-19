@@ -31,7 +31,7 @@ use the editor.
 
 ## Project rules
 - Game logic lives in `src/lib/game/` as pure, deterministic modules (engine, words, filter, rng) shared by client and server; bots and word picks derive from a lobby seed so every client and the server compute identical results without storing bot answers.
-- All database writes go through server functions using the admin client; public tables only expose SELECT to anon, so scores cannot be forged from the browser.
+- All database reads and writes go through server functions using the admin client; game tables grant nothing to anon/authenticated (leaderboard reads use the SECURITY DEFINER `leaderboard` function), and lobby state is served only to verified lobby members with other players' answers masked until the round closes, so data cannot be scraped or scores forged from the browser.
 - Final scores are recomputed on the server (stored answers + seeded bots) before being written to `scores`; never trust a client-sent total.
 - Matchmaking and lobby start are atomic SQL functions (advisory lock); any client may call start once the wait time passes, it is idempotent.
 - Synonym quality: curated tiers first, then cached `judgments`, then the Datamuse API; cache only real results so ratings stay consistent across players.

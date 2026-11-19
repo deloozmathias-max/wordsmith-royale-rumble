@@ -15,6 +15,13 @@
       "when": 1795118153035,
       "tag": "0001_player_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795118350234,
+      "tag": "0002_lock_game_tables",
+      "breakpoints": true
     }
   ]
 }

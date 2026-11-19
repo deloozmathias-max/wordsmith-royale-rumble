@@ -243,3 +243,38 @@ export const getLeaderboard = createServerFn({ method: "GET" })
       error: null as string | null,
     };
   });
+
+export type LobbyAnswer = { player_id: string; round: number; answer: string; tier: number; ms: number };
+
+/**
+ * Lobby state for a verified member of that lobby. Other players' answers for a round
+ * that is still open are masked so nobody can copy them before the round ends.
+ */
+export const getLobbyState = createServerFn({ method: "POST" })
+  .inputValidator((d: { lobbyId: string; playerId: string; playerKey: string }) => ({
+    lobbyId: assertUuid(d?.lobbyId, "lobby"),
+    playerId: assertUuid(d?.playerId, "player"),
+    playerKey: readKey(d?.playerKey),
+  }))
+  .handler(async ({ data }) => {
+    const db = await admin();
+    await assertPlayer(db, data.playerId, data.playerKey);
+    const [{ data: lobby }, { data: players }, { data: answers }] = await Promise.all([
+      db
+        .from("lobbies")
+        .select("id, status, seed, words, bot_count, fill_at, starts_at")
+        .eq("id", data.lobbyId)
+        .maybeSingle(),
+      db.from("lobby_players").select("player_id, name, joined_at").eq("lobby_id", data.lobbyId).order("joined_at"),
+      db.from("answers").select("player_id, round, answer, tier, ms").eq("lobby_id", data.lobbyId),
+    ]);
+    if (!lobby || !players?.some((p) => p.player_id === data.playerId)) throw new Error("Lobby not found");
+    const startsAt = lobby.starts_at ? new Date(lobby.starts_at).getTime() : null;
+    const now = Date.now();
+    const visible: LobbyAnswer[] = (answers ?? []).map((a) => {
+      const roundClosesAt = startsAt === null ? Infinity : startsAt + a.round * (ROUND_MS + RESULTS_MS) + ROUND_MS;
+      if (a.player_id === data.playerId || now >= roundClosesAt) return a;
+      return { player_id: a.player_id, round: a.round, answer: "", tier: 0, ms: a.ms };
+    });
+    return { lobby, players, answers: visible };
+  });
