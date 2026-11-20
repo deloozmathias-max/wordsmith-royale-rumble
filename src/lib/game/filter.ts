@@ -1,5 +1,5 @@
-// Name + synonym filter. Blocks swear words (English + Dutch), insults,
-// masking characters like * and leetspeak tricks.
+// Name + synonym filter. Blocks swear words (English + Dutch), insults, masking
+// characters like *, leetspeak tricks, numbers, symbols and gibberish.
 
 // Matched anywhere inside the text (also with spaces/dots removed).
 const STRONG = [
@@ -58,16 +58,37 @@ export function containsProfanity(raw: string): boolean {
   return false;
 }
 
+// Keyboard mashing ("asdf", "qwerty") — none of these appear inside real English words.
+const KEYBOARD = [
+  "qwer", "wert", "asdf", "sdfg", "dfgh", "fghj", "ghjk", "hjkl", "zxcv", "xcvb", "cvbn", "vbnm",
+  "yuio", "uiop", "poiu", "lkjh", "mnbv",
+];
+
+/** Letter strings that aren't plausible words: "aaaa", "hahaha", "xkcd", "asdfgh", "brrrt". */
+export function looksLikeGibberish(raw: string): boolean {
+  const tokens = raw.toLowerCase().split(/[^a-z]+/).filter(Boolean);
+  for (const t of tokens) {
+    if (/(.)\1{2,}/.test(t)) return true; // 3+ of the same letter in a row
+    if (/(.{2,3})\1{2,}/.test(t)) return true; // same chunk 3+ times: ababab, lololol
+    if (t.length >= 3 && !/[aeiouy]/.test(t)) return true; // no vowels at all
+    if (/[^aeiouy]{5,}/.test(t)) return true; // 5+ consonants in a row
+    if (KEYBOARD.some((k) => t.includes(k))) return true;
+  }
+  return false;
+}
+
 export type FilterResult = { ok: true; value: string } | { ok: false; error: string };
 
 export function validatePlayerName(input: string): FilterResult {
   const value = input.trim().replace(/\s+/g, " ");
   if (value.length < 3) return { ok: false, error: "Name must be at least 3 characters." };
   if (value.length > 16) return { ok: false, error: "Name can be at most 16 characters." };
+  if (/\d/.test(value)) return { ok: false, error: "Numbers aren't allowed in names." };
   if (MASK_CHARS.test(value)) return { ok: false, error: "Symbols like * or # aren't allowed in names." };
-  if (!/^[A-Za-z0-9 _.-]+$/.test(value)) return { ok: false, error: "Use letters, numbers, spaces, _ . or - only." };
-  if (!/[A-Za-z]/.test(value)) return { ok: false, error: "Your name needs at least one letter." };
+  if (!/^[A-Za-z]+( [A-Za-z]+)*$/.test(value)) return { ok: false, error: "Use letters only (one space between words is fine)." };
+  if (value.replace(/ /g, "").length < 3) return { ok: false, error: "Name needs at least 3 letters." };
   if (containsProfanity(value)) return { ok: false, error: "That name isn't allowed. Please pick a clean name." };
+  if (looksLikeGibberish(value)) return { ok: false, error: "That looks like gibberish — pick a real name." };
   return { ok: true, value };
 }
 
@@ -75,9 +96,11 @@ export function validateSynonym(input: string): FilterResult {
   const value = input.trim().replace(/\s+/g, " ");
   if (value.length === 0) return { ok: false, error: "Type a synonym first." };
   if (value.length > 24) return { ok: false, error: "Keep it under 24 characters." };
+  if (/\d/.test(value)) return { ok: false, error: "No numbers — just a word." };
   if (MASK_CHARS.test(value)) return { ok: false, error: "No symbols like * please — just letters." };
-  if (!/^[A-Za-z' -]+$/.test(value)) return { ok: false, error: "Letters only (spaces, - and ' are fine)." };
+  if (!/^[A-Za-z]+([ '-][A-Za-z]+)*$/.test(value)) return { ok: false, error: "Letters only (a single space, - or ' between words is fine)." };
   if (containsProfanity(value)) return { ok: false, error: "Keep it clean — that word is blocked." };
+  if (looksLikeGibberish(value)) return { ok: false, error: "That doesn't look like a real word." };
   return { ok: true, value: value.toLowerCase() };
 }
 
@@ -87,7 +110,7 @@ const NOUN = ["Otter", "Falcon", "Fox", "Lexicon", "Panda", "Comet", "Owl", "Tig
 export function defaultPlayerName(rand: () => number = Math.random): string {
   const a = ADJ[Math.floor(rand() * ADJ.length)];
   const n = NOUN[Math.floor(rand() * NOUN.length)];
-  return `${a}${n}${Math.floor(rand() * 90 + 10)}`;
+  return `${a}${n}`;
 }
 
 /** Returns a clean name: the input when valid, otherwise a safe default. */

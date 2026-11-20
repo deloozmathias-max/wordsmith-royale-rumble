@@ -1,5 +1,5 @@
 // Synonym rating shared by the server and offline mode. No database access here.
-import { dictionaryTier, isSameWord, normalizeAnswer } from "./words";
+import { dictionaryTier, normalizeAnswer, targetVariant } from "./words";
 import { validateSynonym } from "./filter";
 
 export type Judgment = { ok: true; answer: string; tier: number } | { ok: false; error: string };
@@ -36,13 +36,18 @@ export async function externalTier(word: string, answer: string): Promise<number
   return 0;
 }
 
-/** Filter, same-word and curated-list checks. Returns a final verdict or the cleaned answer to look up. */
+/**
+ * Filter, curated-list and same-word checks. Returns a final verdict or the cleaned answer to look up.
+ * Curated synonyms always count, even when they look close to the prompt (cold → cool).
+ */
 export function quickJudge(word: string, raw: string): { done: Judgment } | { answer: string } {
   const v = validateSynonym(raw);
   if (!v.ok) return { done: { ok: false, error: v.error } };
   const answer = normalizeAnswer(v.value);
-  if (isSameWord(word, answer)) return { done: { ok: true, answer, tier: 0 } };
   const dict = dictionaryTier(word, answer);
   if (dict !== null) return { done: { ok: true, answer, tier: dict } };
+  const variant = targetVariant(word, answer);
+  if (variant === "form") return { done: { ok: false, error: `That's just a form of "${word}" — try a different word.` } };
+  if (variant === "typo") return { done: { ok: false, error: `Too close to "${word}" — try a different word.` } };
   return { answer };
 }

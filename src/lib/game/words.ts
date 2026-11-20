@@ -64,11 +64,36 @@ export function dictionaryTier(word: string, answer: string): 0 | 1 | 2 | 3 | nu
   return null;
 }
 
-/** Answers that are the prompt word itself (or a simple form of it) score nothing. */
-export function isSameWord(word: string, answer: string): boolean {
-  const a = normalizeAnswer(answer).replace(/[\s-]/g, "");
+/** Edit distance where swapping two neighbouring letters counts as one edit. */
+export function editDistance(a: string, b: string): number {
+  const d: number[][] = Array.from({ length: a.length + 1 }, (_, i) => Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)));
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      let v = Math.min(d[i - 1]![j]! + 1, d[i]![j - 1]! + 1, d[i - 1]![j - 1]! + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) v = Math.min(v, d[i - 2]![j - 2]! + 1);
+      d[i]![j] = v;
+    }
+  }
+  return d[a.length]![b.length]!;
+}
+
+/**
+ * Is the answer just the prompt word itself? "form" = the word or a plural/conjugated/derived
+ * form of it (happier, happily, begins); "typo" = a near-miss spelling (hapy, begun).
+ */
+export function targetVariant(word: string, answer: string): "form" | "typo" | null {
   const w = word.toLowerCase();
-  if (a === w) return true;
-  const stem = w.length > 4 ? w.slice(0, w.length - 1) : w;
-  return a.startsWith(stem) && a.length <= w.length + 4;
+  const a = normalizeAnswer(answer);
+  const candidates = [a.replace(/[\s'-]/g, ""), ...a.split(/[\s'-]+/)].filter(Boolean);
+  const base = w.length > 4 ? w.slice(0, -1) : w;
+  const maxTypo = w.length <= 5 ? 1 : 2;
+  for (const c of candidates) {
+    if (c === w) return "form";
+    if (c.startsWith(base) && c.length - base.length <= 5) return "form";
+  }
+  for (const c of candidates) {
+    if (Math.abs(c.length - w.length) <= maxTypo && editDistance(c, w) <= maxTypo) return "typo";
+  }
+  return null;
 }
