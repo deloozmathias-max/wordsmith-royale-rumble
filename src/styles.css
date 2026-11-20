@@ -181,3 +181,10 @@
   0%, 100% { opacity: 0.25; }
   50% { opacity: 1; }
 }
+#lovable-badge,
+[id*="lovable-badge"],
+a[href*="lovable.dev"] {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
