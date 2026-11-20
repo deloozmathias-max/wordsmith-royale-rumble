@@ -36,3 +36,5 @@ use the editor.
 - Matchmaking and lobby start are atomic SQL functions (advisory lock); any client may call start once the wait time passes, it is idempotent.
 - Synonym quality: curated tiers first, then cached `judgments`, then the Datamuse API; cache only real results so ratings stay consistent across players.
 - Player identity: the server issues each player an id plus a secret key (only its hash is stored in `player_keys`); every online server function that acts for a player must call `assertPlayer` before using the caller-supplied player id.
+- Static build (`bun run build:static`, `vite.static.config.ts` + `spa/index.html` + `src/spa-main.tsx`) is a separate client-only SPA for GitHub Pages/iframes: hash history, `base: './'`, and `game.functions` swapped for a rejecting stub; the main `vite.config.ts` stays on TanStack Start because Lovable preview/hosting need SSR.
+- UI never calls server functions for bots/leaderboard/identity directly: it uses `src/lib/game/api.ts`, which catches failures and falls back to offline mode (local judge + Datamuse, scores via `src/lib/safe-storage.ts`), so an unreachable server or blocked storage never crashes the app.

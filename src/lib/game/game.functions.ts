@@ -233,7 +233,13 @@ export const getLeaderboard = createServerFn({ method: "GET" })
         },
       },
     });
-    const { data: rows, error } = await client.rpc("leaderboard", { p_period: data.period });
+    let rows: Database["public"]["Functions"]["leaderboard"]["Returns"] | null = null;
+    let error: unknown = null;
+    try {
+      ({ data: rows, error } = await client.rpc("leaderboard", { p_period: data.period }));
+    } catch (e) {
+      error = e;
+    }
     if (error) {
       console.error(error);
       return { rows: [] as LeaderboardRow[], error: "Leaderboard is unavailable right now." };

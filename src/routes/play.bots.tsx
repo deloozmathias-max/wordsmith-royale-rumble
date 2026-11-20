@@ -1,12 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { SiteHeader } from "@/components/game/SiteHeader";
 import { GameView } from "@/components/game/GameView";
 import { usePlayer } from "@/hooks/use-player";
 import { COUNTDOWN_MS, ROUNDS, botAnswersByRound, makeBots, pickWords, scoreGame, type Answer, type Player } from "@/lib/game/engine";
-import { judgeSynonym, submitBotsGame } from "@/lib/game/game.functions";
+import { judgeSafe, submitBotsGameSafe } from "@/lib/game/api";
+import { saveLocalScore } from "@/lib/game/offline";
 
 export const Route = createFileRoute("/play/bots")({
   ssr: false,
@@ -47,8 +47,6 @@ function BotsGame({ playerId, name }: { playerId: string; name: string }) {
   const mineRef = useRef(mine);
   mineRef.current = mine;
 
-  const judge = useServerFn(judgeSynonym);
-  const saveGame = useServerFn(submitBotsGame);
   const now = useCallback(() => Date.now(), []);
 
   const players: Player[] = useMemo(() => [{ id: playerId, name, isBot: false }, ...game.bots], [playerId, name, game.bots]);
@@ -57,28 +55,34 @@ function BotsGame({ playerId, name }: { playerId: string; name: string }) {
 
   const onSubmit = useCallback(
     async (round: number, text: string, ms: number) => {
-      const res = await judge({ data: { word: game.words[round] ?? "", answer: text } });
+      const res = await judgeSafe(game.words[round] ?? "", text);
       if (res.ok) {
         setMine((m) => m.map((a, i) => (i === round ? { answer: res.answer, tier: res.tier, ms } : a)));
       }
       return res;
     },
-    [judge, game.words],
+    [game.words],
   );
 
   const onFinished = useCallback(async () => {
     const m = mineRef.current;
-    try {
-      const res = await saveGame({
-        data: { playerId, name, seed: game.seed, answers: m.map((a) => a?.answer ?? null), ms: m.map((a) => a?.ms ?? null) },
-      });
+    const res = await submitBotsGameSafe({
+      playerId,
+      name,
+      seed: game.seed,
+      answers: m.map((a) => a?.answer ?? null),
+      ms: m.map((a) => a?.ms ?? null),
+    });
+    if (res) {
       setFinalScore(res.score);
-    } catch {
-      const local = scoreGame(players, botAnswers.map((r, i) => ({ ...r, [playerId]: m[i] }))).totals[playerId];
-      setFinalScore(local ?? 0);
-      toast.error("Couldn't save your score to the leaderboard.");
+      return;
     }
-  }, [saveGame, playerId, name, game.seed, players, botAnswers]);
+    // Offline: score the game here and keep it on this device.
+    const local = scoreGame(players, botAnswers.map((r, i) => ({ ...r, [playerId]: m[i] }))).totals[playerId] ?? 0;
+    setFinalScore(local);
+    saveLocalScore({ playerId, name, score: local, mode: "bots" });
+    toast("Playing offline — your score is saved on this device.");
+  }, [playerId, name, game.seed, players, botAnswers]);
 
   const playAgain = () => {
     setGame(newGame());

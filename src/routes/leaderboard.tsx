@@ -1,10 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
-import { Crown } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Crown, WifiOff } from "lucide-react";
 import { SiteHeader } from "@/components/game/SiteHeader";
 import { Button } from "@/components/ui/button";
 import { usePlayer } from "@/hooks/use-player";
-import { getLeaderboard } from "@/lib/game/game.functions";
+import type { LeaderboardRow } from "@/lib/game/game.functions";
+import { leaderboardSafe } from "@/lib/game/api";
+import { buildLeaderboard, readLocalScores } from "@/lib/game/offline";
 
 type Period = "all" | "weekly" | "daily";
 const PERIODS: { id: Period; label: string; hint: string }[] = [
@@ -16,7 +19,7 @@ const PERIODS: { id: Period; label: string; hint: string }[] = [
 const leaderboardQuery = (period: Period) =>
   queryOptions({
     queryKey: ["leaderboard", period],
-    queryFn: () => getLeaderboard({ data: { period } }),
+    queryFn: () => leaderboardSafe(period),
     staleTime: 15_000,
   });
 
@@ -45,6 +48,12 @@ function LeaderboardPage() {
   const { player } = usePlayer();
   const current = PERIODS.find((p) => p.id === period)!;
   const medal = ["text-gold", "text-silver", "text-bronze"];
+  // Offline: show the scores saved on this device (read after load so the first render matches).
+  const [localRows, setLocalRows] = useState<LeaderboardRow[]>([]);
+  useEffect(() => {
+    if (data.offline) setLocalRows(buildLeaderboard(readLocalScores(), period));
+  }, [data.offline, period]);
+  const rows = data.offline ? localRows : data.rows;
 
   return (
     <div className="arena-bg min-h-screen">
@@ -71,9 +80,13 @@ function LeaderboardPage() {
         </div>
         <p className="mt-3 text-sm text-muted-foreground">{current.hint}</p>
 
-        {data.error && <p className="mt-6 text-destructive">{data.error}</p>}
+        {data.offline && (
+          <p className="mt-6 inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-muted-foreground">
+            <WifiOff className="size-4" /> Offline — showing scores saved on this device.
+          </p>
+        )}
 
-        {data.rows.length === 0 && !data.error ? (
+        {rows.length === 0 ? (
           <div className="panel mt-6 flex flex-col items-center px-6 py-14 text-center">
             <Crown className="size-8 text-gold" />
             <p className="mt-4 font-display text-2xl font-bold">The throne is empty</p>
@@ -91,7 +104,7 @@ function LeaderboardPage() {
               <span className="hidden w-16 text-right sm:block">Best</span>
               <span className="w-20 text-right">Points</span>
             </li>
-            {data.rows.map((r, i) => {
+            {rows.map((r, i) => {
               const isYou = player?.id === r.player_id;
               return (
                 <li

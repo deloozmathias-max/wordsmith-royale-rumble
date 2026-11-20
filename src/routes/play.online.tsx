@@ -1,8 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bot, Loader2, UserRound } from "lucide-react";
+import { Bot, Loader2, UserRound, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { SiteHeader } from "@/components/game/SiteHeader";
 import { GameView } from "@/components/game/GameView";
@@ -17,6 +16,7 @@ import {
   startLobby,
   submitOnlineAnswer,
 } from "@/lib/game/game.functions";
+import { OFFLINE_ONLY } from "@/lib/game/api";
 
 export const Route = createFileRoute("/play/online")({
   ssr: false,
@@ -36,7 +36,6 @@ export const Route = createFileRoute("/play/online")({
 function OnlinePage() {
   const { player } = usePlayer();
   const navigate = useNavigate();
-  const join = useServerFn(joinMatchmaking);
   const [session, setSession] = useState<{ lobbyId: string; offset: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -45,12 +44,14 @@ function OnlinePage() {
     if (player && !player.name) navigate({ to: "/" });
   }, [player, navigate]);
 
+  const offline = OFFLINE_ONLY || !!player?.offline;
+
   useEffect(() => {
-    if (!player?.name) return;
+    if (!player?.name || offline) return;
     let cancelled = false;
     setError(null);
     const sent = Date.now();
-    join({ data: { playerId: player.id, playerKey: player.key, name: player.name } })
+    joinMatchmaking({ data: { playerId: player.id, playerKey: player.key, name: player.name } })
       .then((r) => {
         if (cancelled) return;
         const latency = (Date.now() - sent) / 2;
@@ -60,19 +61,26 @@ function OnlinePage() {
     return () => {
       cancelled = true;
     };
-  }, [player?.id, player?.key, player?.name, attempt, join]);
+  }, [player?.id, player?.key, player?.name, attempt, offline]);
 
   return (
     <div className="arena-bg min-h-screen">
       <SiteHeader />
-      {!player?.name || !session ? (
+      {offline ? (
+        <OfflineNotice />
+      ) : !player?.name || !session ? (
         <div className="flex flex-col items-center px-4 py-24 text-center">
           {error ? (
             <>
               <p className="text-destructive">{error}</p>
-              <Button className="mt-4" variant="hero" onClick={() => setAttempt((a) => a + 1)}>
-                Try again
-              </Button>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                <Button variant="hero" onClick={() => setAttempt((a) => a + 1)}>
+                  Try again
+                </Button>
+                <Button variant="arena" asChild>
+                  <Link to="/play/bots">Play vs Bots instead</Link>
+                </Button>
+              </div>
             </>
           ) : (
             <>
@@ -113,19 +121,18 @@ function OnlineMatch({
 }) {
   const queryClient = useQueryClient();
   const now = useCallback(() => Date.now() + offset, [offset]);
-  const start = useServerFn(startLobby);
-  const leave = useServerFn(leaveLobby);
-  const submit = useServerFn(submitOnlineAnswer);
-  const finish = useServerFn(finishOnlineGame);
-  const fetchState = useServerFn(getLobbyState);
+  const start = startLobby;
+  const leave = leaveLobby;
+  const finish = finishOnlineGame;
   const [mine, setMine] = useState<Record<number, Answer>>({});
   const [finalScore, setFinalScore] = useState<number | null>(null);
   const [done, setDone] = useState(false);
 
-  const { data } = useQuery({
+  const { data, failureCount } = useQuery({
     queryKey: ["lobby", lobbyId],
-    queryFn: () => fetchState({ data: { lobbyId, playerId, playerKey } }),
+    queryFn: () => getLobbyState({ data: { lobbyId, playerId, playerKey } }),
     refetchInterval: done ? false : 1500,
+    retry: 2,
   });
 
   const status = data?.lobby.status;
@@ -187,11 +194,15 @@ function OnlineMatch({
 
   const onSubmit = useCallback(
     async (round: number, text: string, ms: number) => {
-      const res = await submit({ data: { lobbyId, playerId, playerKey, round, answer: text } });
-      if (res.ok) setMine((m) => ({ ...m, [round]: { answer: res.answer, tier: res.tier, ms } }));
-      return res;
+      try {
+        const res = await submitOnlineAnswer({ data: { lobbyId, playerId, playerKey, round, answer: text } });
+        if (res.ok) setMine((m) => ({ ...m, [round]: { answer: res.answer, tier: res.tier, ms } }));
+        return res;
+      } catch {
+        return { ok: false as const, error: "Connection lost — your answer didn't go through." };
+      }
     },
-    [submit, lobbyId, playerId, playerKey],
+    [lobbyId, playerId, playerKey],
   );
 
   const onFinished = useCallback(async () => {
@@ -207,6 +218,22 @@ function OnlineMatch({
       setFinalScore(0);
     }
   }, [finish, lobbyId, playerId, playerKey, queryClient]);
+
+  if (!data && failureCount >= 3) {
+    return (
+      <div className="flex flex-col items-center px-4 py-24 text-center">
+        <p className="text-destructive">Lost connection to the game server.</p>
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          <Button variant="hero" onClick={onPlayAgain}>
+            Try again
+          </Button>
+          <Button variant="arena" asChild>
+            <Link to="/play/bots">Play vs Bots instead</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (!data) {
     return (
@@ -234,6 +261,22 @@ function OnlineMatch({
       finalScore={finalScore}
       onPlayAgain={onPlayAgain}
     />
+  );
+}
+
+function OfflineNotice() {
+  return (
+    <div className="animate-rise mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
+      <WifiOff className="size-8 text-muted-foreground" />
+      <h1 className="mt-4 font-display text-3xl font-extrabold">You're playing offline</h1>
+      <p className="mt-2 text-muted-foreground">
+        Online matches need the game server, which can't be reached right now. You can still battle 9 bots — your scores are
+        saved on this device.
+      </p>
+      <Button variant="hero" size="lg" className="mt-6" asChild>
+        <Link to="/play/bots">Play vs Bots</Link>
+      </Button>
+    </div>
   );
 }
 
