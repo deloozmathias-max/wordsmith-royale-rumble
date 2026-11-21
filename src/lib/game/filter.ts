@@ -8,7 +8,7 @@ const STRONG = [
   "penis", "vagina", "boob", "jerkoff", "blowjob", "handjob", "slut", "douche",
   "bollock", "skank", "kanker", "tyfus", "klootzak", "kloot", "mongool", "flikker",
   "neuk", "godver", "godsamme", "sukkel", "debiel", "hoerenjong", "kutwijf",
-  "nazi", "hitler",
+  "nazi", "hitler", "lovesex", "sexsex", "wantsex",
 ];
 
 // Only matched as a whole word (avoids blocking "class", "cocktail", "grape", "hoera" ...).
@@ -73,7 +73,13 @@ export function looksLikeGibberish(raw: string): boolean {
     if (t.length >= 3 && !/[aeiouy]/.test(t)) return true; // no vowels at all
     if (/[^aeiouy]{5,}/.test(t)) return true; // 5+ consonants in a row
     if (KEYBOARD.some((k) => t.includes(k))) return true;
+    // "y" counts as a vowel above (rhythm, gym), so catch mashes like "xyzq" by rare letters.
+    if (!/[aeiou]/.test(t) && (t.match(/[jqxz]/g)?.length ?? 0) >= 2) return true;
   }
+  // The same word 3+ times: "blah blah blah", "no no no".
+  const seen = new Map<string, number>();
+  for (const t of tokens) seen.set(t, (seen.get(t) ?? 0) + 1);
+  if ([...seen.values()].some((n) => n >= 3)) return true;
   return false;
 }
 

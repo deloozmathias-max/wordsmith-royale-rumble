@@ -7,9 +7,11 @@ import { usePlayer } from "@/hooks/use-player";
 import { COUNTDOWN_MS, ROUNDS, botAnswersByRound, makeBots, pickWords, scoreGame, type Answer, type Player } from "@/lib/game/engine";
 import { judgeSafe, submitBotsGameSafe } from "@/lib/game/api";
 import { saveLocalScore } from "@/lib/game/offline";
+import { newSeed, parseChallengeSearch, type ChallengeSearch } from "@/lib/game/challenge";
 
 export const Route = createFileRoute("/play/bots")({
   ssr: false,
+  validateSearch: parseChallengeSearch,
   head: () => ({
     meta: [
       { title: "Play vs Bots — Synonym Royale" },
@@ -23,25 +25,52 @@ export const Route = createFileRoute("/play/bots")({
   component: BotsPage,
 });
 
-function newGame() {
-  const seed = Math.floor(Math.random() * 2_000_000_000);
+function newGame(fixedSeed?: number) {
+  const seed = fixedSeed ?? newSeed();
   return { seed, words: pickWords(seed), bots: makeBots(seed, 9), startsAt: Date.now() + COUNTDOWN_MS };
 }
 
 function BotsPage() {
   const { player } = usePlayer();
+  const search = Route.useSearch();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (player && !player.name) navigate({ to: "/" });
-  }, [player, navigate]);
+    // No name yet: a challenge link goes to the challenge page to pick one, otherwise home.
+    if (player && !player.name) {
+      if (search.seed !== undefined) navigate({ to: "/challenge", search });
+      else navigate({ to: "/" });
+    }
+  }, [player, navigate, search]);
 
   if (!player?.name) return <div className="arena-bg min-h-screen" />;
-  return <BotsGame playerId={player.id} name={player.name} />;
+  return (
+    <BotsGame
+      key={search.seed ?? "random"}
+      playerId={player.id}
+      name={player.name}
+      search={search}
+      onLeaveChallenge={() => navigate({ to: "/play/bots", search: {} })}
+    />
+  );
 }
 
-function BotsGame({ playerId, name }: { playerId: string; name: string }) {
-  const [game, setGame] = useState(newGame);
+function BotsGame({
+  playerId,
+  name,
+  search,
+  onLeaveChallenge,
+}: {
+  playerId: string;
+  name: string;
+  search: ChallengeSearch;
+  onLeaveChallenge: () => void;
+}) {
+  const [game, setGame] = useState(() => newGame(search.seed));
+  const challenge =
+    search.targetScore !== undefined || search.challenger
+      ? { challenger: search.challenger ?? null, targetScore: search.targetScore ?? null }
+      : null;
   const [mine, setMine] = useState<(Answer | null)[]>(() => Array(ROUNDS).fill(null));
   const [finalScore, setFinalScore] = useState<number | null>(null);
   const mineRef = useRef(mine);
@@ -85,6 +114,8 @@ function BotsGame({ playerId, name }: { playerId: string; name: string }) {
   }, [playerId, name, game.seed, players, botAnswers]);
 
   const playAgain = () => {
+    // Fixed-seed games (challenges) start a fresh random game instead of replaying the same words.
+    if (search.seed !== undefined) return onLeaveChallenge();
     setGame(newGame());
     setMine(Array(ROUNDS).fill(null));
     setFinalScore(null);
@@ -95,7 +126,9 @@ function BotsGame({ playerId, name }: { playerId: string; name: string }) {
       <SiteHeader />
       <GameView
         key={game.seed}
-        modeLabel="vs Bots"
+        modeLabel={challenge ? `Challenge from ${challenge.challenger ?? "a friend"}` : "vs Bots"}
+        seed={game.seed}
+        challenge={challenge}
         words={game.words}
         players={players}
         youId={playerId}

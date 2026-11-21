@@ -1,8 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { Bot, Globe2, Sparkles, Timer, Users } from "lucide-react";
+import { Bot, Globe2, Sparkles, Swords, Timer, Users } from "lucide-react";
 import { SiteHeader } from "@/components/game/SiteHeader";
 import { NameField } from "@/components/game/NameField";
+import { ShareDialog } from "@/components/game/ShareDialog";
+import { Button } from "@/components/ui/button";
+import { useChallengeLink } from "@/hooks/use-challenge-link";
+import { newSeed } from "@/lib/game/challenge";
 import { usePlayer } from "@/hooks/use-player";
 import { validatePlayerName } from "@/lib/game/filter";
 
@@ -32,15 +36,28 @@ function Home() {
   const [draft, setDraft] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const name = draft ?? player?.name ?? "";
+  const challengeLink = useChallengeLink();
+  const [challenge, setChallenge] = useState<{ seed: number; link: string } | null>(null);
 
-  function go(to: "/play/bots" | "/play/online") {
+  function checkName() {
     const r = validatePlayerName(name);
     if (!r.ok) {
       setError(r.error);
-      return;
+      return null;
     }
     saveName(r.value);
-    navigate({ to });
+    return r.value;
+  }
+
+  function go(to: "/play/bots" | "/play/online") {
+    if (checkName()) navigate({ to });
+  }
+
+  function makeChallenge() {
+    const n = checkName();
+    if (!n) return;
+    const seed = newSeed();
+    setChallenge({ seed, link: challengeLink({ seed, challenger: n }) });
   }
 
   return (
@@ -91,8 +108,37 @@ function Home() {
               cta="Find a match"
               onClick={() => go("/play/online")}
             />
+            <button
+              type="button"
+              onClick={makeChallenge}
+              className="group flex items-center justify-between gap-3 rounded-2xl border border-accent/40 bg-accent/10 px-5 py-4 text-left transition-all hover:border-accent active:scale-[0.98] sm:col-span-2"
+            >
+              <span className="flex items-center gap-3">
+                <Swords className="size-5 text-accent" />
+                <span>
+                  <span className="block font-display text-lg font-bold">Challenge a Friend</span>
+                  <span className="block text-sm text-muted-foreground">Send a link: same 5 words, same bots.</span>
+                </span>
+              </span>
+              <span className="font-display font-bold text-accent transition-transform group-hover:translate-x-1">→</span>
+            </button>
           </div>
         </section>
+
+        <ShareDialog
+          open={!!challenge}
+          onOpenChange={(o) => !o && setChallenge(null)}
+          title="Challenge a Friend"
+          description="Send this link. Your friend plays the exact same 5 words against the same 9 bots — then compare scores."
+          text={challenge?.link ?? ""}
+        >
+          <Button
+            variant="arena"
+            onClick={() => challenge && navigate({ to: "/play/bots", search: { seed: challenge.seed } })}
+          >
+            <Bot /> Play these words now
+          </Button>
+        </ShareDialog>
 
         <section className="mt-12 grid gap-3 sm:grid-cols-3">
           <Rule icon={<Timer className="size-5" />} title="20 seconds" text="Each round shows one word. Lock in a single synonym." />

@@ -75,3 +75,8 @@ describe("variants of the target word are rejected", () => {
     expect(looksLikeGibberish("strengthen")).toBe(false);
   });
 });
+
+describe("filter gaps", () => {
+  it("blocks joined rude phrases in names", () => expect(validatePlayerName("ilovesex").ok).toBe(false));
+  it.each(["lynx", "jazz", "pizza", "rhythm", "so so"])("still allows %s", (w) => expect(validateSynonym(w).ok).toBe(true));
+});

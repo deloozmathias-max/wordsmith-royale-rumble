@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link } from "@tanstack/react-router";
-import { Check, Crown, Loader2, RotateCcw, Sparkles, Trophy } from "lucide-react";
+import { Check, ClipboardCopy, Crown, Loader2, RotateCcw, Sparkles, Swords, Target, Trophy } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { ShareDialog } from "@/components/game/ShareDialog";
+import { useChallengeLink } from "@/hooks/use-challenge-link";
+import { copyText } from "@/lib/clipboard";
+import { buildResultText, resultGrid, verdict } from "@/lib/game/challenge";
 import {
   ROUNDS,
   ROUND_MS,
@@ -12,6 +17,7 @@ import {
   scoreRound,
   type Answer,
   type Player,
+  type RoundScore,
 } from "@/lib/game/engine";
 import { validateSynonym } from "@/lib/game/filter";
 
@@ -29,7 +35,13 @@ type Props = {
   finalScore: number | null;
   onPlayAgain: () => void;
   modeLabel: string;
+  /** Seed of this game: friends replay it through a challenge link. */
+  seed: number;
+  /** Set when playing someone's challenge link. */
+  challenge?: Challenge | null;
 };
+
+type Challenge = { challenger: string | null; targetScore: number | null };
 
 const TIER_CHIP: Record<number, string> = {
   3: "border-tier-3/40 bg-tier-3/10 text-tier-3",
@@ -55,7 +67,7 @@ export function GameView(props: Props) {
   const completedRounds =
     phase.kind === "finished" ? ROUNDS : phase.kind === "results" ? phase.round + 1 : phase.kind === "round" ? phase.round : 0;
 
-  const { totals } = useMemo(
+  const { totals, rounds } = useMemo(
     () => scoreGame(players, answers.slice(0, completedRounds)),
     [players, answers, completedRounds],
   );
@@ -78,6 +90,7 @@ export function GameView(props: Props) {
           round={phase.kind === "countdown" ? -1 : phase.round}
           score={totals[youId] ?? 0}
           name={you?.name ?? "You"}
+          target={props.challenge?.targetScore ?? null}
         />
       )}
 
@@ -116,13 +129,28 @@ export function GameView(props: Props) {
           totals={totals}
           finalScore={props.finalScore}
           onPlayAgain={props.onPlayAgain}
+          seed={props.seed}
+          rounds={rounds.map((r) => r[youId])}
+          challenge={props.challenge ?? null}
         />
       )}
     </div>
   );
 }
 
-function TopBar({ label, round, score, name }: { label: string; round: number; score: number; name: string }) {
+function TopBar({
+  label,
+  round,
+  score,
+  name,
+  target,
+}: {
+  label: string;
+  round: number;
+  score: number;
+  name: string;
+  target: number | null;
+}) {
   return (
     <div className="mb-6 flex items-center justify-between gap-4">
       <div>
@@ -140,7 +168,10 @@ function TopBar({ label, round, score, name }: { label: string; round: number; s
       </div>
       <div className="text-right">
         <p className="kicker truncate">{name}</p>
-        <p className="tabular text-2xl font-bold text-primary">{score}</p>
+        <p className="tabular text-2xl font-bold text-primary">
+          {score}
+          {target !== null && <span className="ml-1.5 text-sm font-semibold text-muted-foreground">/ {target} to beat</span>}
+        </p>
       </div>
     </div>
   );
@@ -414,14 +445,41 @@ function FinalStandings(props: {
   totals: Record<string, number>;
   finalScore: number | null;
   onPlayAgain: () => void;
+  seed: number;
+  rounds: (RoundScore | undefined)[];
+  challenge: Challenge | null;
 }) {
   const { players, youId, totals } = props;
+  const challengeLink = useChallengeLink();
+  const [shareOpen, setShareOpen] = useState(false);
+  const [resultOpen, setResultOpen] = useState(false);
   const ranked = rankPlayers(players, totals);
   const yourRank = ranked.findIndex((p) => p.id === youId) + 1;
   const podium = ranked.slice(0, 3);
   const medal = ["text-gold", "text-silver", "text-bronze"];
   const heights = ["h-36", "h-28", "h-24"];
   const order = [1, 0, 2];
+  const you = players.find((p) => p.id === youId);
+  const score = props.finalScore ?? totals[youId] ?? 0;
+  const target = props.challenge?.targetScore ?? null;
+  const link = challengeLink({
+    seed: props.seed,
+    targetScore: score,
+    ...(you?.name ? { challenger: you.name } : {}),
+  });
+  const resultText = buildResultText({
+    score,
+    rank: yourRank,
+    playerCount: players.length,
+    rounds: props.rounds,
+    link,
+    challenge: props.challenge,
+  });
+
+  async function copyResult() {
+    if (await copyText(resultText)) toast.success("Result copied — paste it anywhere!");
+    else setResultOpen(true);
+  }
 
   return (
     <div className="animate-rise pt-4 text-center">
@@ -448,6 +506,14 @@ function FinalStandings(props: {
           </>
         )}
       </p>
+
+      <p className="mt-4 text-2xl tracking-widest" aria-label="Your rounds">
+        {resultGrid(props.rounds)}
+      </p>
+
+      {target !== null && props.finalScore !== null && (
+        <ChallengeVerdict score={props.finalScore} target={target} challenger={props.challenge?.challenger ?? null} />
+      )}
 
       <div className="mx-auto mt-10 grid max-w-md grid-cols-3 items-end gap-3">
         {order.map((idx) => {
@@ -483,8 +549,14 @@ function FinalStandings(props: {
         ))}
       </ol>
 
-      <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-        <Button variant="hero" size="xl" onClick={props.onPlayAgain}>
+      <div className="mx-auto mt-8 grid max-w-md gap-3 sm:grid-cols-2">
+        <Button variant="hero" size="xl" onClick={() => setShareOpen(true)} disabled={props.finalScore === null}>
+          <Swords /> Challenge a Friend
+        </Button>
+        <Button variant="arena" size="xl" onClick={copyResult} disabled={props.finalScore === null}>
+          <ClipboardCopy /> Copy Result
+        </Button>
+        <Button variant="arena" size="xl" onClick={props.onPlayAgain}>
           <RotateCcw /> Play again
         </Button>
         <Button variant="arena" size="xl" asChild>
@@ -493,6 +565,36 @@ function FinalStandings(props: {
           </Link>
         </Button>
       </div>
+
+      <ShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        title="Challenge a Friend"
+        description={`Your friend gets the same 5 words and the same bots, with ${score} points to beat.`}
+        text={link}
+      />
+      <ShareDialog
+        open={resultOpen}
+        onOpenChange={setResultOpen}
+        title="Your result"
+        description="Copy this summary and paste it in any chat."
+        text={resultText}
+      />
+    </div>
+  );
+}
+
+function ChallengeVerdict({ score, target, challenger }: { score: number; target: number; challenger: string | null }) {
+  const v = verdict(score, target);
+  const who = challenger ?? "your friend";
+  return (
+    <div
+      className={`animate-pop mx-auto mt-5 inline-flex items-center gap-2 rounded-full border px-4 py-2 font-semibold ${
+        v === "lost" ? "border-destructive/40 bg-destructive/10 text-destructive" : "border-primary/40 bg-primary/10 text-primary"
+      }`}
+    >
+      <Target className="size-4" />
+      {v === "beat" ? `You beat ${who}'s ${target}!` : v === "tied" ? `Tied with ${who} at ${target}` : `${target - score} short of ${who}'s ${target}`}
     </div>
   );
 }

@@ -250,6 +250,7 @@ function OnlineMatch({
   return (
     <GameView
       modeLabel="Online match"
+      seed={game.seed}
       words={game.words}
       players={game.players}
       youId={playerId}
