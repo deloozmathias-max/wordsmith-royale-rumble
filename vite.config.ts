@@ -15,4 +15,11 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  vite: {
+    // Pre-bundle the dialog at startup; discovering it mid-session made Vite re-bundle
+    // React and left the open preview with two React copies (blank screen).
+    optimizeDeps: { include: ["@radix-ui/react-dialog"] },
+    // The static build output isn't part of the app; don't reload the preview when it changes.
+    server: { watch: { ignored: ["**/dist-static/**"] } },
+  },
 });
