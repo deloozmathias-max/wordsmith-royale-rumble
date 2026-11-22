@@ -71,3 +71,15 @@ describe("name & synonym filter", () => {
     expect(validateSynonym("joyful").ok).toBe(true);
   });
 });
+
+import { WORDS as ALL_WORDS } from "./words";
+describe("word bank", () => {
+  it("has at least 120 unique target words with 5 synonyms per tier", () => {
+    expect(ALL_WORDS.length).toBeGreaterThanOrEqual(120);
+    expect(new Set(ALL_WORDS.map((w) => w.word)).size).toBe(ALL_WORDS.length);
+    for (const w of ALL_WORDS) {
+      expect([w.best.length, w.good.length, w.ok.length]).toEqual([5, 5, 5]);
+      expect(new Set([...w.best, ...w.good, ...w.ok]).size).toBe(15);
+    }
+  });
+});

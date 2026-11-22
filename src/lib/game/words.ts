@@ -1,8 +1,10 @@
 // Curated English word bank. Each word lists synonyms by quality:
 // best = 30 pts, good = 20 pts, ok = 10 pts. Unknown answers are checked by the server.
+import { EXTRA_WORDS } from "./words-extra";
+
 export type WordEntry = { word: string; best: string[]; good: string[]; ok: string[] };
 
-export const WORDS: WordEntry[] = [
+const BASE_WORDS: WordEntry[] = [
   { word: "happy", best: ["joyful", "cheerful", "content", "delighted", "elated"], good: ["glad", "pleased", "merry", "jolly", "upbeat"], ok: ["cheery", "chipper", "sunny", "fine", "good"] },
   { word: "sad", best: ["sorrowful", "unhappy", "melancholy", "dejected", "downcast"], good: ["gloomy", "miserable", "blue", "down", "heartbroken"], ok: ["low", "glum", "upset", "moody", "tearful"] },
   { word: "big", best: ["large", "huge", "enormous", "massive", "immense"], good: ["giant", "gigantic", "vast", "great", "colossal"], ok: ["tall", "bulky", "hefty", "wide", "jumbo"] },
@@ -46,6 +48,8 @@ export const WORDS: WordEntry[] = [
   { word: "shiny", best: ["glossy", "gleaming", "sparkling", "glittering", "lustrous"], good: ["bright", "polished", "radiant", "shimmering", "dazzling"], ok: ["glowing", "sleek", "brilliant", "silky", "smooth"] },
   { word: "dirty", best: ["filthy", "grimy", "muddy", "soiled", "unclean"], good: ["dusty", "messy", "stained", "grubby", "mucky"], ok: ["foul", "nasty", "greasy", "polluted", "sloppy"] },
 ];
+
+export const WORDS: WordEntry[] = [...BASE_WORDS, ...EXTRA_WORDS];
 
 export function normalizeAnswer(s: string): string {
   return s.toLowerCase().trim().replace(/\s+/g, " ").replace(/[\u2019]/g, "'");
