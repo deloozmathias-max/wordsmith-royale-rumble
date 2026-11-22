@@ -70,7 +70,10 @@ function FriendsPage() {
   async function toggle(f: FriendRow, add: boolean) {
     if (!auth) return;
     const r = await setFriendSafe(auth, f.id, add).catch(() => null);
-    if (!r) return toast.error("Couldn't update friends. Try again.");
+    if (!r) {
+      toast.error("Couldn't update friends. Try again.");
+      return;
+    }
     toast.success(add ? `${f.name} added to your friends` : `${f.name} removed`);
     void refresh();
   }

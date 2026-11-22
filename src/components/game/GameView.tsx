@@ -606,6 +606,8 @@ const CARD_TONE: Record<number, string> = {
   0: "border-border bg-muted/40",
 };
 
+const TIER_TEXT: Record<number, string> = { 3: "text-tier-3", 2: "text-tier-2", 1: "text-tier-1", 0: "text-tier-0" };
+
 /** One recap card per round: word, your answer, points and the unique bonus. */
 function RoundCards({ words, rounds }: { words: string[]; rounds: (RoundScore | undefined)[] }) {
   return (
@@ -626,7 +628,7 @@ function RoundCards({ words, rounds }: { words: string[]; rounds: (RoundScore | 
               <span className={`w-full truncate text-sm ${r?.answer ? "font-semibold" : "text-muted-foreground/60"}`}>
                 {r?.answer || "no answer"}
               </span>
-              <span className={`tabular text-lg font-bold ${r?.answer ? `text-tier-${tier}` : "text-muted-foreground"}`}>
+              <span className={`tabular text-lg font-bold ${r?.answer ? TIER_TEXT[tier] : "text-muted-foreground"}`}>
                 +{r?.total ?? 0}
               </span>
               {r?.unique && (
