@@ -284,3 +284,79 @@ export const getLobbyState = createServerFn({ method: "POST" })
     });
     return { lobby, players, answers: visible };
   });
+
+// ---- Friends & unique names -------------------------------------------------
+
+export type FriendRow = { id: string; name: string; lastSeen: string };
+type Auth = { playerId: string; key: string };
+
+function readAuth(d: { playerId?: unknown; key?: unknown }): Auth {
+  return { playerId: assertUuid(d?.playerId, "player"), key: readKey(d?.key) };
+}
+
+/** Claims a unique name (and marks the player online). Returns the name the player now has. */
+export const claimName = createServerFn({ method: "POST" })
+  .inputValidator((d: Auth & { name: string }) => ({ ...readAuth(d), name: sanitizePlayerName(String(d?.name ?? "")) }))
+  .handler(async ({ data }) => {
+    const db = await admin();
+    await assertPlayer(db, data.playerId, data.key);
+    const { data: rows, error } = await db.rpc("claim_name", { p_player: data.playerId, p_name: data.name });
+    const row = rows?.[0];
+    if (error || !row) throw new Error("Could not save your name right now.");
+    return { name: row.name, ok: row.ok };
+  });
+
+/** Finds players by (the start of) their current name. */
+export const searchPlayers = createServerFn({ method: "POST" })
+  .inputValidator((d: Auth & { query: string }) => ({
+    ...readAuth(d),
+    query: String(d?.query ?? "").replace(/[^a-z0-9 _-]/gi, "").trim().slice(0, 16).toLowerCase(),
+  }))
+  .handler(async ({ data }): Promise<FriendRow[]> => {
+    const db = await admin();
+    await assertPlayer(db, data.playerId, data.key);
+    if (data.query.length < 2) return [];
+    const { data: rows } = await db
+      .from("player_profiles")
+      .select("player_id, name, last_seen")
+      .like("name_key", `${data.query}%`)
+      .neq("player_id", data.playerId)
+      .order("last_seen", { ascending: false })
+      .limit(10);
+    return (rows ?? []).map((r) => ({ id: r.player_id, name: r.name, lastSeen: r.last_seen }));
+  });
+
+/** Lists the caller's friends with their current names (friends are linked by id, so renames keep them). */
+export const listFriends = createServerFn({ method: "POST" })
+  .inputValidator((d: Auth) => readAuth(d))
+  .handler(async ({ data }): Promise<FriendRow[]> => {
+    const db = await admin();
+    await assertPlayer(db, data.playerId, data.key);
+    const { data: links } = await db.from("friendships").select("friend_id").eq("player_id", data.playerId);
+    const ids = (links ?? []).map((l) => l.friend_id);
+    if (!ids.length) return [];
+    const { data: rows } = await db.from("player_profiles").select("player_id, name, last_seen").in("player_id", ids);
+    return (rows ?? [])
+      .map((r) => ({ id: r.player_id, name: r.name, lastSeen: r.last_seen }))
+      .sort((a, b) => b.lastSeen.localeCompare(a.lastSeen));
+  });
+
+export const setFriend = createServerFn({ method: "POST" })
+  .inputValidator((d: Auth & { friendId: string; add: boolean }) => ({
+    ...readAuth(d),
+    friendId: assertUuid(d?.friendId, "friend"),
+    add: d?.add === true,
+  }))
+  .handler(async ({ data }) => {
+    const db = await admin();
+    await assertPlayer(db, data.playerId, data.key);
+    if (data.friendId === data.playerId) throw new Error("You can't add yourself.");
+    if (data.add) {
+      const { data: exists } = await db.from("player_profiles").select("player_id").eq("player_id", data.friendId).maybeSingle();
+      if (!exists) throw new Error("Player not found.");
+      await db.from("friendships").upsert({ player_id: data.playerId, friend_id: data.friendId });
+    } else {
+      await db.from("friendships").delete().eq("player_id", data.playerId).eq("friend_id", data.friendId);
+    }
+    return { ok: true };
+  });

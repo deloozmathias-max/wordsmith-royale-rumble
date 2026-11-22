@@ -39,22 +39,26 @@ function Home() {
   const challengeLink = useChallengeLink();
   const [challenge, setChallenge] = useState<{ seed: number; link: string } | null>(null);
 
-  function checkName() {
+  async function checkName() {
     const r = validatePlayerName(name);
     if (!r.ok) {
       setError(r.error);
       return null;
     }
-    saveName(r.value);
+    const taken = await saveName(r.value);
+    if (taken) {
+      setError(taken);
+      return null;
+    }
     return r.value;
   }
 
-  function go(to: "/play/bots" | "/play/online") {
-    if (checkName()) navigate({ to });
+  async function go(to: "/play/bots" | "/play/online") {
+    if (await checkName()) navigate({ to });
   }
 
-  function makeChallenge() {
-    const n = checkName();
+  async function makeChallenge() {
+    const n = await checkName();
     if (!n) return;
     const seed = newSeed();
     setChallenge({ seed, link: challengeLink({ seed, challenger: n }) });

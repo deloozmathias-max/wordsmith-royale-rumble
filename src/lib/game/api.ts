@@ -1,7 +1,11 @@
 // Every call to the game server goes through here. If the server or database can't be
 // reached, the call resolves to an offline result instead of throwing.
 import {
+  claimName,
   getLeaderboard,
+  listFriends,
+  searchPlayers,
+  setFriend,
   judgeSynonym,
   registerPlayer,
   submitBotsGame,
@@ -49,4 +53,20 @@ export async function leaderboardSafe(period: "all" | "weekly" | "daily"): Promi
   const r = await tryServer(() => getLeaderboard({ data: { period } }));
   if (!r || r.error) return { rows: [], error: null, offline: true };
   return { rows: r.rows, error: null, offline: false };
+}
+
+type Auth = { playerId: string; key: string };
+
+/** Claims a unique name; null when offline (the local name is then kept as-is). */
+export function claimNameSafe(auth: Auth, name: string) {
+  return tryServer(() => claimName({ data: { ...auth, name } }));
+}
+export function searchPlayersSafe(auth: Auth, query: string) {
+  return tryServer(() => searchPlayers({ data: { ...auth, query } }));
+}
+export function listFriendsSafe(auth: Auth) {
+  return tryServer(() => listFriends({ data: auth }));
+}
+export function setFriendSafe(auth: Auth, friendId: string, add: boolean) {
+  return tryServer(() => setFriend({ data: { ...auth, friendId, add } }));
 }

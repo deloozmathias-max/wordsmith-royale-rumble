@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ChallengeRouteImport } from './routes/challenge'
+import { Route as FriendsRouteImport } from './routes/friends'
 import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as PlayBotsRouteImport } from './routes/play.bots'
 import { Route as PlayOnlineRouteImport } from './routes/play.online'
@@ -23,6 +24,11 @@ const IndexRoute = IndexRouteImport.update({
 const ChallengeRoute = ChallengeRouteImport.update({
   id: '/challenge',
   path: '/challenge',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FriendsRoute = FriendsRouteImport.update({
+  id: '/friends',
+  path: '/friends',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LeaderboardRoute = LeaderboardRouteImport.update({
@@ -44,6 +50,7 @@ const PlayOnlineRoute = PlayOnlineRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/challenge': typeof ChallengeRoute
+  '/friends': typeof FriendsRoute
   '/leaderboard': typeof LeaderboardRoute
   '/play/bots': typeof PlayBotsRoute
   '/play/online': typeof PlayOnlineRoute
@@ -51,6 +58,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/challenge': typeof ChallengeRoute
+  '/friends': typeof FriendsRoute
   '/leaderboard': typeof LeaderboardRoute
   '/play/bots': typeof PlayBotsRoute
   '/play/online': typeof PlayOnlineRoute
@@ -59,19 +67,33 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/challenge': typeof ChallengeRoute
+  '/friends': typeof FriendsRoute
   '/leaderboard': typeof LeaderboardRoute
   '/play/bots': typeof PlayBotsRoute
   '/play/online': typeof PlayOnlineRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/challenge' | '/leaderboard' | '/play/bots' | '/play/online'
+  fullPaths:
+    | '/'
+    | '/challenge'
+    | '/friends'
+    | '/leaderboard'
+    | '/play/bots'
+    | '/play/online'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/challenge' | '/leaderboard' | '/play/bots' | '/play/online'
+  to:
+    | '/'
+    | '/challenge'
+    | '/friends'
+    | '/leaderboard'
+    | '/play/bots'
+    | '/play/online'
   id:
     | '__root__'
     | '/'
     | '/challenge'
+    | '/friends'
     | '/leaderboard'
     | '/play/bots'
     | '/play/online'
@@ -80,6 +102,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ChallengeRoute: typeof ChallengeRoute
+  FriendsRoute: typeof FriendsRoute
   LeaderboardRoute: typeof LeaderboardRoute
   PlayBotsRoute: typeof PlayBotsRoute
   PlayOnlineRoute: typeof PlayOnlineRoute
@@ -99,6 +122,13 @@ declare module '@tanstack/react-router' {
       path: '/challenge'
       fullPath: '/challenge'
       preLoaderRoute: typeof ChallengeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/friends': {
+      id: '/friends'
+      path: '/friends'
+      fullPath: '/friends'
+      preLoaderRoute: typeof FriendsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/leaderboard': {
@@ -128,6 +158,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ChallengeRoute: ChallengeRoute,
+  FriendsRoute: FriendsRoute,
   LeaderboardRoute: LeaderboardRoute,
   PlayBotsRoute: PlayBotsRoute,
   PlayOnlineRoute: PlayOnlineRoute,

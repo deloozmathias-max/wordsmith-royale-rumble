@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ShareDialog } from "@/components/game/ShareDialog";
 import { useChallengeLink } from "@/hooks/use-challenge-link";
 import { copyText } from "@/lib/clipboard";
-import { buildResultText, resultGrid, verdict } from "@/lib/game/challenge";
+import { buildResultText, verdict } from "@/lib/game/challenge";
 import {
   ROUNDS,
   ROUND_MS,
@@ -130,6 +130,7 @@ export function GameView(props: Props) {
           finalScore={props.finalScore}
           onPlayAgain={props.onPlayAgain}
           seed={props.seed}
+          words={words}
           rounds={rounds.map((r) => r[youId])}
           challenge={props.challenge ?? null}
         />
@@ -446,6 +447,7 @@ function FinalStandings(props: {
   finalScore: number | null;
   onPlayAgain: () => void;
   seed: number;
+  words: string[];
   rounds: (RoundScore | undefined)[];
   challenge: Challenge | null;
 }) {
@@ -507,9 +509,7 @@ function FinalStandings(props: {
         )}
       </p>
 
-      <p className="mt-4 text-2xl tracking-widest" aria-label="Your rounds">
-        {resultGrid(props.rounds)}
-      </p>
+      <RoundCards words={props.words} rounds={props.rounds} />
 
       {target !== null && props.finalScore !== null && (
         <ChallengeVerdict score={props.finalScore} target={target} challenger={props.challenge?.challenger ?? null} />
@@ -595,6 +595,49 @@ function ChallengeVerdict({ score, target, challenger }: { score: number; target
     >
       <Target className="size-4" />
       {v === "beat" ? `You beat ${who}'s ${target}!` : v === "tied" ? `Tied with ${who} at ${target}` : `${target - score} short of ${who}'s ${target}`}
+    </div>
+  );
+}
+
+const CARD_TONE: Record<number, string> = {
+  3: "border-tier-3/50 bg-tier-3/10",
+  2: "border-tier-2/50 bg-tier-2/10",
+  1: "border-tier-1/50 bg-tier-1/10",
+  0: "border-border bg-muted/40",
+};
+
+/** One recap card per round: word, your answer, points and the unique bonus. */
+function RoundCards({ words, rounds }: { words: string[]; rounds: (RoundScore | undefined)[] }) {
+  return (
+    <div className="mx-auto mt-6 max-w-3xl">
+      <p className="kicker">Your rounds</p>
+      <ol className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+        {Array.from({ length: ROUNDS }).map((_, i) => {
+          const r = rounds[i];
+          const tier = r?.answer ? r.tier : 0;
+          return (
+            <li
+              key={i}
+              className={`animate-rise flex flex-col items-center gap-1 rounded-xl border px-2 py-3 ${CARD_TONE[tier]} ${i === ROUNDS - 1 ? "col-span-2 sm:col-span-1" : ""}`}
+              style={{ animationDelay: `${i * 60}ms` }}
+            >
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Round {i + 1}</span>
+              <span className="w-full truncate font-display text-sm font-extrabold uppercase">{words[i] ?? "—"}</span>
+              <span className={`w-full truncate text-sm ${r?.answer ? "font-semibold" : "text-muted-foreground/60"}`}>
+                {r?.answer || "no answer"}
+              </span>
+              <span className={`tabular text-lg font-bold ${r?.answer ? `text-tier-${tier}` : "text-muted-foreground"}`}>
+                +{r?.total ?? 0}
+              </span>
+              {r?.unique && (
+                <span className="flex items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[10px] font-bold text-accent">
+                  <Sparkles className="size-3" /> UNIQUE +10
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ol>
     </div>
   );
 }

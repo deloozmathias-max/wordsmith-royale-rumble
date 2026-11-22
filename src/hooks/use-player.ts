@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { validatePlayerName } from "@/lib/game/filter";
-import { registerPlayerSafe } from "@/lib/game/api";
+import { claimNameSafe, registerPlayerSafe } from "@/lib/game/api";
 import { safeStorage } from "@/lib/safe-storage";
 
 const ID_KEY = "sr.playerId";
@@ -36,6 +36,15 @@ export function usePlayer() {
     const key = safeStorage.get(SECRET_KEY);
     if (id && key) {
       setPlayer({ id, key, name, offline: false });
+      // Marks the player online and keeps their unique name; if it expired and was
+      // taken, the server hands back the new name.
+      if (name)
+        void claimNameSafe({ playerId: id, key }, name).then((r) => {
+          if (!cancelled && r && r.name !== name) {
+            safeStorage.set(NAME_KEY, r.name);
+            setPlayer((p) => (p ? { ...p, name: r.name } : p));
+          }
+        });
       return;
     }
     void registerPlayerSafe().then((r) => {
@@ -58,10 +67,19 @@ export function usePlayer() {
     };
   }, []);
 
-  const saveName = useCallback((name: string) => {
-    safeStorage.set(NAME_KEY, name);
-    setPlayer((p) => (p ? { ...p, name } : p));
-  }, []);
+  /** Saves the name; resolves to an error message when another player already has it. */
+  const saveName = useCallback(
+    async (name: string): Promise<string | null> => {
+      if (player && !player.offline && player.key) {
+        const r = await claimNameSafe({ playerId: player.id, key: player.key }, name);
+        if (r && !r.ok) return "That name is already taken — try another.";
+      }
+      safeStorage.set(NAME_KEY, name);
+      setPlayer((p) => (p ? { ...p, name } : p));
+      return null;
+    },
+    [player],
+  );
 
   return { player, saveName };
 }

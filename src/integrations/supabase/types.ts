@@ -55,6 +55,24 @@ export type Database = {
           },
         ]
       }
+      friendships: {
+        Row: {
+          created_at: string
+          friend_id: string
+          player_id: string
+        }
+        Insert: {
+          created_at?: string
+          friend_id: string
+          player_id: string
+        }
+        Update: {
+          created_at?: string
+          friend_id?: string
+          player_id?: string
+        }
+        Relationships: []
+      }
       judgments: {
         Row: {
           answer: string
@@ -159,6 +177,27 @@ export type Database = {
         }
         Relationships: []
       }
+      player_profiles: {
+        Row: {
+          last_seen: string
+          name: string
+          name_key: string
+          player_id: string
+        }
+        Insert: {
+          last_seen?: string
+          name: string
+          name_key: string
+          player_id: string
+        }
+        Update: {
+          last_seen?: string
+          name?: string
+          name_key?: string
+          player_id?: string
+        }
+        Relationships: []
+      }
       scores: {
         Row: {
           created_at: string
@@ -194,6 +233,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_name: {
+        Args: { p_name: string; p_player: string }
+        Returns: {
+          name: string
+          ok: boolean
+        }[]
+      }
       join_matchmaking: {
         Args: {
           p_name: string

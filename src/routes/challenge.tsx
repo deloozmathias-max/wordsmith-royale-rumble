@@ -35,13 +35,17 @@ function ChallengePage() {
   const name = draft ?? player?.name ?? "";
   const who = search.challenger ?? "A friend";
 
-  function accept() {
+  async function accept() {
     const r = validatePlayerName(name);
     if (!r.ok) {
       setError(r.error);
       return;
     }
-    saveName(r.value);
+    const taken = await saveName(r.value);
+    if (taken) {
+      setError(taken);
+      return;
+    }
     navigate({ to: "/play/bots", search });
   }
 

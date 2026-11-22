@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Trophy } from "lucide-react";
+import { Trophy, Users } from "lucide-react";
 
 export function Logo({ className = "" }: { className?: string }) {
   return (
@@ -31,7 +31,15 @@ export function SiteHeader() {
             className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground"
             activeProps={{ className: "text-foreground" }}
           >
-            <Trophy className="size-4" /> Leaderboard
+            <Trophy className="size-4" /> <span className="hidden sm:inline">Leaderboard</span>
+          </Link>
+          <Link
+            to="/friends"
+            aria-label="Friends"
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground"
+            activeProps={{ className: "text-foreground" }}
+          >
+            <Users className="size-4" /> <span className="hidden sm:inline">Friends</span>
           </Link>
         </nav>
       </div>
