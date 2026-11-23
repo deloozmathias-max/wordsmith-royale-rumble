@@ -1,12 +1,13 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { Bot, Globe2, Sparkles, Swords, Timer, Users } from "lucide-react";
+import { Bot, CalendarDays, Globe2, Sparkles, Swords, Timer, Users } from "lucide-react";
 import { SiteHeader } from "@/components/game/SiteHeader";
 import { NameField } from "@/components/game/NameField";
 import { ShareDialog } from "@/components/game/ShareDialog";
 import { Button } from "@/components/ui/button";
 import { useChallengeLink } from "@/hooks/use-challenge-link";
 import { newSeed } from "@/lib/game/challenge";
+import { dailyKey, dailyNumber } from "@/lib/game/daily";
 import { usePlayer } from "@/hooks/use-player";
 import { validatePlayerName } from "@/lib/game/filter";
 
@@ -53,7 +54,7 @@ function Home() {
     return r.value;
   }
 
-  async function go(to: "/play/bots" | "/play/online") {
+  async function go(to: "/play/bots" | "/play/online" | "/play/daily") {
     if (await checkName()) navigate({ to });
   }
 
@@ -112,6 +113,22 @@ function Home() {
               cta="Find a match"
               onClick={() => go("/play/online")}
             />
+            <button
+              type="button"
+              onClick={() => go("/play/daily")}
+              className="group flex items-center justify-between gap-3 rounded-2xl border border-primary/50 bg-primary/10 px-5 py-4 text-left transition-all hover:border-primary active:scale-[0.98] sm:col-span-2"
+            >
+              <span className="flex items-center gap-3">
+                <CalendarDays className="size-5 text-primary" />
+                <span>
+                  <span className="block font-display text-lg font-bold">
+                    Daily Royale <span className="text-primary">#{dailyNumber(dailyKey())}</span>
+                  </span>
+                  <span className="block text-sm text-muted-foreground">Same 5 words for everyone today. One try.</span>
+                </span>
+              </span>
+              <span className="font-display font-bold text-primary transition-transform group-hover:translate-x-1">→</span>
+            </button>
             <button
               type="button"
               onClick={makeChallenge}

@@ -53,9 +53,12 @@ export function buildResultText(o: {
   rounds: (RoundScore | undefined)[];
   link: string;
   challenge?: { challenger: string | null; targetScore: number | null } | null;
+  /** Daily Royale number, when this was the daily game. */
+  daily?: number;
 }): string {
+  const title = o.daily ? `Synonym Royale Daily #${o.daily}` : "Synonym Royale";
   const lines = [
-    `Synonym Royale ${RANK_EMOJI[o.rank - 1] ?? "🎯"} #${o.rank} of ${o.playerCount} · ${o.score} pts`,
+    `${title} ${RANK_EMOJI[o.rank - 1] ?? "🎯"} #${o.rank} of ${o.playerCount} · ${o.score} pts`,
     resultGrid(o.rounds),
   ];
   const t = o.challenge?.targetScore;
@@ -64,6 +67,6 @@ export function buildResultText(o: {
     const v = verdict(o.score, t);
     lines.push(v === "beat" ? `Beat ${who} ${t} ✅` : v === "tied" ? `Tied ${who} ${t} 🤝` : `Fell short of ${who} ${t} ❌`);
   }
-  lines.push(`Can you beat me? ${o.link}`);
+  lines.push(o.daily ? `Same 5 words for everyone today: ${o.link}` : `Can you beat me? ${o.link}`);
   return lines.join("\n");
 }

@@ -16,6 +16,7 @@ export const startLobby = offline;
 export const submitOnlineAnswer = offline;
 export const finishOnlineGame = offline;
 export const getLeaderboard = offline;
+export const getMyRank = offline;
 export const getLobbyState = offline;
 export type { FriendRow } from "./game.functions";
 export const claimName = offline;

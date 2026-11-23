@@ -2,6 +2,7 @@
 import { readJson, writeJson } from "@/lib/safe-storage";
 import { externalTier, quickJudge, type Judgment } from "./judge-core";
 import type { LeaderboardRow } from "./game.functions";
+import type { LeaderboardPeriod } from "./daily";
 
 const JUDGE_KEY = "sr.offlineJudgments";
 const SCORES_KEY = "sr.localScores";
@@ -20,7 +21,7 @@ export async function judgeOffline(word: string, raw: string): Promise<Judgment>
   return { ok: true, answer: q.answer, tier };
 }
 
-export type LocalScore = { playerId: string; name: string; score: number; mode: "bots" | "online"; at: number };
+export type LocalScore = { playerId: string; name: string; score: number; mode: "bots" | "online" | "daily"; at: number };
 
 export function readLocalScores(): LocalScore[] {
   const list = readJson<unknown>(SCORES_KEY, []);
@@ -36,19 +37,19 @@ export function saveLocalScore(s: Omit<LocalScore, "at">, at = Date.now()): void
 }
 
 /** Same windows as the online leaderboard: today and this week (from Monday), in UTC. */
-export function periodStart(period: "all" | "weekly" | "daily", now: number): number {
+export function periodStart(period: LeaderboardPeriod, now: number): number {
   if (period === "all") return -Infinity;
   const d = new Date(now);
   const midnight = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-  if (period === "daily") return midnight;
+  if (period === "daily" || period === "royale") return midnight;
   return midnight - ((d.getUTCDay() + 6) % 7) * DAY;
 }
 
-export function buildLeaderboard(scores: LocalScore[], period: "all" | "weekly" | "daily", now = Date.now()): LeaderboardRow[] {
+export function buildLeaderboard(scores: LocalScore[], period: LeaderboardPeriod, now = Date.now()): LeaderboardRow[] {
   const from = periodStart(period, now);
   const rows = new Map<string, LeaderboardRow>();
   for (const s of scores) {
-    if (s.at < from) continue;
+    if (s.at < from || (period === "royale" && s.mode !== "daily")) continue;
     const row = rows.get(s.playerId) ?? { player_id: s.playerId, name: s.name, total: 0, games: 0, best: 0 };
     row.name = s.name;
     row.total += s.score;

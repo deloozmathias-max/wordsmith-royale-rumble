@@ -29,6 +29,13 @@
       "when": 1795342168045,
       "tag": "0003_friends_and_unique_names",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795457894732,
+      "tag": "0004_daily_royale_and_my_rank",
+      "breakpoints": true
     }
   ]
 }

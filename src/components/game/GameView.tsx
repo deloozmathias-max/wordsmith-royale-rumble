@@ -4,7 +4,7 @@ import { Check, ClipboardCopy, Crown, Loader2, RotateCcw, Sparkles, Swords, Targ
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ShareDialog } from "@/components/game/ShareDialog";
-import { useChallengeLink } from "@/hooks/use-challenge-link";
+import { useChallengeLink, useDailyLink } from "@/hooks/use-challenge-link";
 import { copyText } from "@/lib/clipboard";
 import { buildResultText, verdict } from "@/lib/game/challenge";
 import {
@@ -39,6 +39,10 @@ type Props = {
   seed: number;
   /** Set when playing someone's challenge link. */
   challenge?: Challenge | null;
+  /** Set for the Daily Royale (same words for everyone today). */
+  daily?: { key: string; number: number } | null;
+  /** Shown under the final score (e.g. a Daily Royale replay that didn't count). */
+  scoreNote?: string | null;
 };
 
 type Challenge = { challenger: string | null; targetScore: number | null };
@@ -133,6 +137,8 @@ export function GameView(props: Props) {
           words={words}
           rounds={rounds.map((r) => r[youId])}
           challenge={props.challenge ?? null}
+          daily={props.daily ?? null}
+          scoreNote={props.scoreNote ?? null}
         />
       )}
     </div>
@@ -450,9 +456,12 @@ function FinalStandings(props: {
   words: string[];
   rounds: (RoundScore | undefined)[];
   challenge: Challenge | null;
+  daily: { key: string; number: number } | null;
+  scoreNote: string | null;
 }) {
-  const { players, youId, totals } = props;
+  const { players, youId, totals, daily } = props;
   const challengeLink = useChallengeLink();
+  const dailyLink = useDailyLink();
   const [shareOpen, setShareOpen] = useState(false);
   const [resultOpen, setResultOpen] = useState(false);
   const ranked = rankPlayers(players, totals);
@@ -474,8 +483,9 @@ function FinalStandings(props: {
     rank: yourRank,
     playerCount: players.length,
     rounds: props.rounds,
-    link,
+    link: daily ? dailyLink() : link,
     challenge: props.challenge,
+    ...(daily ? { daily: daily.number } : {}),
   });
 
   async function copyResult() {
@@ -504,7 +514,9 @@ function FinalStandings(props: {
           </span>
         ) : (
           <>
-            <span className="tabular font-bold text-foreground">{props.finalScore}</span> points added to the leaderboard
+            <span className="tabular font-bold text-foreground">{props.finalScore}</span>{" "}
+            {props.scoreNote ? "points" : "points added to the leaderboard"}
+            {props.scoreNote && <span className="mt-1 block text-sm">{props.scoreNote}</span>}
           </>
         )}
       </p>
@@ -550,17 +562,19 @@ function FinalStandings(props: {
       </ol>
 
       <div className="mx-auto mt-8 grid max-w-md gap-3 sm:grid-cols-2">
-        <Button variant="hero" size="xl" onClick={() => setShareOpen(true)} disabled={props.finalScore === null}>
-          <Swords /> Challenge a Friend
-        </Button>
+        {!daily && (
+          <Button variant="hero" size="xl" onClick={() => setShareOpen(true)} disabled={props.finalScore === null}>
+            <Swords /> Challenge a Friend
+          </Button>
+        )}
         <Button variant="arena" size="xl" onClick={copyResult} disabled={props.finalScore === null}>
           <ClipboardCopy /> Copy Result
         </Button>
         <Button variant="arena" size="xl" onClick={props.onPlayAgain}>
-          <RotateCcw /> Play again
+          <RotateCcw /> {daily ? "Play vs Bots" : "Play again"}
         </Button>
-        <Button variant="arena" size="xl" asChild>
-          <Link to="/leaderboard" search={{ period: "daily" }}>
+        <Button variant={daily ? "hero" : "arena"} size="xl" asChild>
+          <Link to="/leaderboard" search={{ period: daily ? "royale" : "daily" }}>
             <Trophy /> Leaderboard
           </Link>
         </Button>

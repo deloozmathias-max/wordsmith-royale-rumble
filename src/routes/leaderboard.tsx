@@ -1,19 +1,21 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Crown, WifiOff } from "lucide-react";
+import { ArrowDown, Crown, WifiOff } from "lucide-react";
 import { SiteHeader } from "@/components/game/SiteHeader";
 import { Button } from "@/components/ui/button";
 import { usePlayer } from "@/hooks/use-player";
 import type { LeaderboardRow } from "@/lib/game/game.functions";
-import { leaderboardSafe } from "@/lib/game/api";
+import { leaderboardSafe, myRankSafe } from "@/lib/game/api";
+import type { LeaderboardPeriod } from "@/lib/game/daily";
 import { buildLeaderboard, readLocalScores } from "@/lib/game/offline";
 
-type Period = "all" | "weekly" | "daily";
+type Period = LeaderboardPeriod;
 const PERIODS: { id: Period; label: string; hint: string }[] = [
   { id: "all", label: "All-Time", hint: "Total score across every game" },
   { id: "weekly", label: "Weekly", hint: "Best players since Monday (UTC)" },
-  { id: "daily", label: "Daily", hint: "Today's top players (UTC)" },
+  { id: "daily", label: "Today", hint: "Today's top players (UTC)" },
+  { id: "royale", label: "Daily Royale", hint: "Today's Daily Royale — same 5 words for everyone, one try each" },
 ];
 
 const leaderboardQuery = (period: Period) =>
@@ -25,7 +27,7 @@ const leaderboardQuery = (period: Period) =>
 
 export const Route = createFileRoute("/leaderboard")({
   validateSearch: (s: Record<string, unknown>): { period: Period } => ({
-    period: s["period"] === "weekly" || s["period"] === "daily" ? s["period"] : "all",
+    period: s["period"] === "weekly" || s["period"] === "daily" || s["period"] === "royale" ? s["period"] : "all",
   }),
   loaderDeps: ({ search }) => ({ period: search.period }),
   loader: ({ context, deps }) => context.queryClient.ensureQueryData(leaderboardQuery(deps.period)),
@@ -55,6 +57,21 @@ function LeaderboardPage() {
   }, [data.offline, period]);
   const rows = data.offline ? localRows : data.rows;
 
+  // Your own place, even far below the top 50.
+  const { data: myRank } = useQuery({
+    queryKey: ["my-rank", period, player?.id],
+    queryFn: () => myRankSafe(period, player!.id),
+    enabled: !!player?.id && !data.offline,
+    staleTime: 15_000,
+  });
+  const localIndex = rows.findIndex((r) => r.player_id === player?.id);
+  const localMe = rows[localIndex];
+  const me = data.offline
+    ? localMe && { rank: localIndex + 1, total: localMe.total, best: localMe.best, players: rows.length }
+    : myRank;
+  const shownInList = !!player && rows.some((r) => r.player_id === player.id);
+  const jumpToMe = () => document.getElementById("you-row")?.scrollIntoView({ behavior: "smooth", block: "center" });
+
   return (
     <div className="arena-bg min-h-screen">
       <SiteHeader />
@@ -62,7 +79,7 @@ function LeaderboardPage() {
         <p className="kicker">Global rankings</p>
         <h1 className="mt-2 font-display text-5xl font-extrabold sm:text-6xl">Leaderboard</h1>
 
-        <div role="tablist" aria-label="Period" className="mt-8 inline-flex rounded-xl border border-border bg-surface p-1">
+        <div role="tablist" aria-label="Period" className="mt-8 inline-flex max-w-full overflow-x-auto rounded-xl border border-border bg-surface p-1">
           {PERIODS.map((p) => (
             <Link
               key={p.id}
@@ -70,7 +87,7 @@ function LeaderboardPage() {
               aria-selected={p.id === period}
               to="/leaderboard"
               search={{ period: p.id }}
-              className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+              className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold transition-colors sm:px-4 ${
                 p.id === period ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -109,6 +126,7 @@ function LeaderboardPage() {
               return (
                 <li
                   key={r.player_id}
+                  id={isYou ? "you-row" : undefined}
                   className={`animate-rise flex items-center gap-3 px-4 py-3 ${isYou ? "bg-primary/5" : ""}`}
                   style={{ animationDelay: `${Math.min(i, 12) * 30}ms` }}
                 >
@@ -124,6 +142,38 @@ function LeaderboardPage() {
               );
             })}
           </ol>
+        )}
+
+        {player && (
+          <div className="sticky bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 mt-6 pr-14">
+            <div className="panel flex items-center gap-3 border-primary/60 px-4 py-3 shadow-glow">
+              {me ? (
+                <>
+                  <span className="tabular font-display text-2xl font-extrabold text-primary">#{me.rank.toLocaleString()}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-semibold">
+                      {player.name || "You"} <span className="text-primary">(you)</span>
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      {me.rank === 1
+                        ? `Top of ${me.players.toLocaleString()} players`
+                        : `${(me.rank - 1).toLocaleString()} ahead of you · ${me.players.toLocaleString()} players`}
+                    </span>
+                  </span>
+                  <span className="tabular text-right text-lg font-bold text-primary">{me.total.toLocaleString()}</span>
+                  {shownInList && (
+                    <Button variant="ghost" size="icon" aria-label="Jump to my row" onClick={jumpToMe}>
+                      <ArrowDown />
+                    </Button>
+                  )}
+                </>
+              ) : (
+                <span className="flex-1 text-sm text-muted-foreground">
+                  {period === "royale" ? "You haven't played today's Daily Royale yet." : "You're not ranked here yet — play a game!"}
+                </span>
+              )}
+            </div>
+          </div>
         )}
       </main>
     </div>

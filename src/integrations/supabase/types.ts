@@ -260,6 +260,26 @@ export type Database = {
           total: number
         }[]
       }
+      leaderboard_rank: {
+        Args: { p_period: string; p_player: string }
+        Returns: {
+          best: number
+          games: number
+          players: number
+          rank: number
+          total: number
+        }[]
+      }
+      leaderboard_totals: {
+        Args: { p_period: string }
+        Returns: {
+          best: number
+          games: number
+          name: string
+          player_id: string
+          total: number
+        }[]
+      }
       start_lobby: { Args: { p_lobby: string }; Returns: undefined }
     }
     Enums: {

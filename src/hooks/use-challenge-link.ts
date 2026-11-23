@@ -16,3 +16,12 @@ export function useChallengeLink() {
     [router],
   );
 }
+
+/** Absolute link to today's Daily Royale (path or hash URL, like useChallengeLink). */
+export function useDailyLink() {
+  const router = useRouter();
+  return useCallback(() => {
+    const loc = router.buildLocation({ to: "/play/daily" });
+    return new URL(router.history.createHref(loc.href), window.location.href).toString();
+  }, [router]);
+}

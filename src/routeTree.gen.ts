@@ -14,6 +14,7 @@ import { Route as ChallengeRouteImport } from './routes/challenge'
 import { Route as FriendsRouteImport } from './routes/friends'
 import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as PlayBotsRouteImport } from './routes/play.bots'
+import { Route as PlayDailyRouteImport } from './routes/play.daily'
 import { Route as PlayOnlineRouteImport } from './routes/play.online'
 
 const IndexRoute = IndexRouteImport.update({
@@ -41,6 +42,11 @@ const PlayBotsRoute = PlayBotsRouteImport.update({
   path: '/play/bots',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PlayDailyRoute = PlayDailyRouteImport.update({
+  id: '/play/daily',
+  path: '/play/daily',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PlayOnlineRoute = PlayOnlineRouteImport.update({
   id: '/play/online',
   path: '/play/online',
@@ -53,6 +59,7 @@ export interface FileRoutesByFullPath {
   '/friends': typeof FriendsRoute
   '/leaderboard': typeof LeaderboardRoute
   '/play/bots': typeof PlayBotsRoute
+  '/play/daily': typeof PlayDailyRoute
   '/play/online': typeof PlayOnlineRoute
 }
 export interface FileRoutesByTo {
@@ -61,6 +68,7 @@ export interface FileRoutesByTo {
   '/friends': typeof FriendsRoute
   '/leaderboard': typeof LeaderboardRoute
   '/play/bots': typeof PlayBotsRoute
+  '/play/daily': typeof PlayDailyRoute
   '/play/online': typeof PlayOnlineRoute
 }
 export interface FileRoutesById {
@@ -70,6 +78,7 @@ export interface FileRoutesById {
   '/friends': typeof FriendsRoute
   '/leaderboard': typeof LeaderboardRoute
   '/play/bots': typeof PlayBotsRoute
+  '/play/daily': typeof PlayDailyRoute
   '/play/online': typeof PlayOnlineRoute
 }
 export interface FileRouteTypes {
@@ -80,6 +89,7 @@ export interface FileRouteTypes {
     | '/friends'
     | '/leaderboard'
     | '/play/bots'
+    | '/play/daily'
     | '/play/online'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -88,6 +98,7 @@ export interface FileRouteTypes {
     | '/friends'
     | '/leaderboard'
     | '/play/bots'
+    | '/play/daily'
     | '/play/online'
   id:
     | '__root__'
@@ -96,6 +107,7 @@ export interface FileRouteTypes {
     | '/friends'
     | '/leaderboard'
     | '/play/bots'
+    | '/play/daily'
     | '/play/online'
   fileRoutesById: FileRoutesById
 }
@@ -105,6 +117,7 @@ export interface RootRouteChildren {
   FriendsRoute: typeof FriendsRoute
   LeaderboardRoute: typeof LeaderboardRoute
   PlayBotsRoute: typeof PlayBotsRoute
+  PlayDailyRoute: typeof PlayDailyRoute
   PlayOnlineRoute: typeof PlayOnlineRoute
 }
 
@@ -145,6 +158,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlayBotsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/play/daily': {
+      id: '/play/daily'
+      path: '/play/daily'
+      fullPath: '/play/daily'
+      preLoaderRoute: typeof PlayDailyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/play/online': {
       id: '/play/online'
       path: '/play/online'
@@ -161,6 +181,7 @@ const rootRouteChildren: RootRouteChildren = {
   FriendsRoute: FriendsRoute,
   LeaderboardRoute: LeaderboardRoute,
   PlayBotsRoute: PlayBotsRoute,
+  PlayDailyRoute: PlayDailyRoute,
   PlayOnlineRoute: PlayOnlineRoute,
 }
 export const routeTree = rootRouteImport

@@ -4,6 +4,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { judgeAnswer } from "./judge.server";
 import { sanitizePlayerName } from "./filter";
 import { assertPlayer, createPlayerKey } from "./player-auth.server";
+import { LEADERBOARD_PERIODS, dailySeed, isAcceptedDailyKey, type LeaderboardPeriod } from "./daily";
 import {
   RESULTS_MS,
   gameEndsAt,
@@ -53,9 +54,11 @@ export const judgeSynonym = createServerFn({ method: "POST" })
 
 /** Records a finished vs-bots game. The server replays the game to compute the score. */
 export const submitBotsGame = createServerFn({ method: "POST" })
-  .inputValidator((d: { playerId: string; name: string; seed: number; answers: (string | null)[]; ms: (number | null)[] }) => {
+  .inputValidator((d: { playerId: string; name: string; seed: number; answers: (string | null)[]; ms: (number | null)[]; dailyKey?: string }) => {
     assertUuid(d?.playerId, "player");
     if (!Number.isInteger(d.seed)) throw new Error("Invalid seed");
+    const dailyKey = typeof d.dailyKey === "string" ? d.dailyKey.slice(0, 10) : null;
+    if (dailyKey && (!isAcceptedDailyKey(dailyKey) || dailySeed(dailyKey) !== d.seed)) throw new Error("This Daily Royale is over.");
     if (!Array.isArray(d.answers) || d.answers.length !== ROUNDS) throw new Error("Invalid answers");
     return {
       playerId: d.playerId,
@@ -63,6 +66,7 @@ export const submitBotsGame = createServerFn({ method: "POST" })
       seed: d.seed,
       answers: d.answers.map((a) => (typeof a === "string" ? a.slice(0, 40) : null)),
       ms: d.ms.map((m) => (typeof m === "number" ? Math.max(0, Math.min(ROUND_MS, Math.round(m))) : 0)),
+      dailyKey,
     };
   })
   .handler(async ({ data }) => {
@@ -81,11 +85,17 @@ export const submitBotsGame = createServerFn({ method: "POST" })
     const { totals } = scoreGame([you, ...bots], byRound);
     const score = Math.min(MAX_GAME_SCORE, totals[you.id] ?? 0);
     const db = await admin();
+    // Daily Royale: only the player's first game of the day counts.
+    const gameKey = data.dailyKey ? `daily:${data.playerId}:${data.dailyKey}` : `bots:${data.playerId}:${data.seed}`;
+    if (data.dailyKey) {
+      const { data: prev } = await db.from("scores").select("score").eq("game_key", gameKey).maybeSingle();
+      if (prev) return { score, counted: false };
+    }
     await db.from("scores").upsert(
-      { game_key: `bots:${data.playerId}:${data.seed}`, player_id: data.playerId, name: you.name, score, mode: "bots" },
+      { game_key: gameKey, player_id: data.playerId, name: you.name, score, mode: data.dailyKey ? "daily" : "bots" },
       { onConflict: "game_key", ignoreDuplicates: true },
     );
-    return { score };
+    return { score, counted: true };
   });
 
 export const joinMatchmaking = createServerFn({ method: "POST" })
@@ -216,27 +226,32 @@ export const finishOnlineGame = createServerFn({ method: "POST" })
 
 export type LeaderboardRow = { player_id: string; name: string; total: number; games: number; best: number };
 
-export const getLeaderboard = createServerFn({ method: "GET" })
-  .inputValidator((d: { period: "all" | "weekly" | "daily" }) => ({
-    period: (["all", "weekly", "daily"].includes(d?.period) ? d.period : "all") as "all" | "weekly" | "daily",
-  }))
-  .handler(async ({ data }) => {
-    const key = process.env["SUPABASE_PUBLISHABLE_KEY"]!;
-    const client = createClient<Database>(process.env["SUPABASE_URL"]!, key, {
-      auth: { persistSession: false, autoRefreshToken: false, storage: undefined },
-      global: {
-        fetch: (input, init) => {
-          const h = new Headers(init?.headers);
-          if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`) h.delete("Authorization");
-          h.set("apikey", key);
-          return fetch(input, { ...init, headers: h });
-        },
+function publicClient() {
+  const key = process.env["SUPABASE_PUBLISHABLE_KEY"]!;
+  return createClient<Database>(process.env["SUPABASE_URL"]!, key, {
+    auth: { persistSession: false, autoRefreshToken: false, storage: undefined },
+    global: {
+      fetch: (input, init) => {
+        const h = new Headers(init?.headers);
+        if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`) h.delete("Authorization");
+        h.set("apikey", key);
+        return fetch(input, { ...init, headers: h });
       },
-    });
+    },
+  });
+}
+
+function readPeriod(v: unknown): LeaderboardPeriod {
+  return LEADERBOARD_PERIODS.includes(v as LeaderboardPeriod) ? (v as LeaderboardPeriod) : "all";
+}
+
+export const getLeaderboard = createServerFn({ method: "GET" })
+  .inputValidator((d: { period: LeaderboardPeriod }) => ({ period: readPeriod(d?.period) }))
+  .handler(async ({ data }) => {
     let rows: Database["public"]["Functions"]["leaderboard"]["Returns"] | null = null;
     let error: unknown = null;
     try {
-      ({ data: rows, error } = await client.rpc("leaderboard", { p_period: data.period }));
+      ({ data: rows, error } = await publicClient().rpc("leaderboard", { p_period: data.period }));
     } catch (e) {
       error = e;
     }
@@ -248,6 +263,22 @@ export const getLeaderboard = createServerFn({ method: "GET" })
       rows: (rows ?? []).map((r) => ({ ...r, total: Number(r.total), games: Number(r.games) })) as LeaderboardRow[],
       error: null as string | null,
     };
+  });
+
+export type MyRank = { rank: number; total: number; games: number; best: number; players: number };
+
+/** One player's place in a leaderboard, however far down they are. Null when they have no score there. */
+export const getMyRank = createServerFn({ method: "GET" })
+  .inputValidator((d: { period: LeaderboardPeriod; playerId: string }) => ({
+    period: readPeriod(d?.period),
+    playerId: assertUuid(d?.playerId, "player"),
+  }))
+  .handler(async ({ data }): Promise<MyRank | null> => {
+    const { data: rows, error } = await publicClient().rpc("leaderboard_rank", { p_period: data.period, p_player: data.playerId });
+    if (error) throw new Error("Rank unavailable");
+    const r = rows?.[0];
+    if (!r) return null;
+    return { rank: Number(r.rank), total: Number(r.total), games: Number(r.games), best: r.best, players: Number(r.players) };
   });
 
 export type LobbyAnswer = { player_id: string; round: number; answer: string; tier: number; ms: number };

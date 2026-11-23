@@ -3,6 +3,7 @@
 import {
   claimName,
   getLeaderboard,
+  getMyRank,
   listFriends,
   searchPlayers,
   setFriend,
@@ -11,6 +12,7 @@ import {
   submitBotsGame,
   type LeaderboardRow,
 } from "@/lib/game/game.functions";
+import type { LeaderboardPeriod } from "./daily";
 import { judgeOffline } from "./offline";
 import type { Judgment } from "./judge-core";
 
@@ -42,6 +44,7 @@ export function submitBotsGameSafe(data: {
   seed: number;
   answers: (string | null)[];
   ms: (number | null)[];
+  dailyKey?: string;
 }) {
   return tryServer(() => submitBotsGame({ data }));
 }
@@ -49,7 +52,7 @@ export function submitBotsGameSafe(data: {
 export type LeaderboardResult = { rows: LeaderboardRow[]; error: string | null; offline: boolean };
 
 /** Online leaderboard, or an empty offline result (the page then shows this device's scores). */
-export async function leaderboardSafe(period: "all" | "weekly" | "daily"): Promise<LeaderboardResult> {
+export async function leaderboardSafe(period: LeaderboardPeriod): Promise<LeaderboardResult> {
   const r = await tryServer(() => getLeaderboard({ data: { period } }));
   if (!r || r.error) return { rows: [], error: null, offline: true };
   return { rows: r.rows, error: null, offline: false };
@@ -69,4 +72,9 @@ export function listFriendsSafe(auth: Auth) {
 }
 export function setFriendSafe(auth: Auth, friendId: string, add: boolean) {
   return tryServer(() => setFriend({ data: { ...auth, friendId, add } }));
+}
+
+/** Your place in a leaderboard (null when offline or unranked). */
+export function myRankSafe(period: LeaderboardPeriod, playerId: string) {
+  return tryServer(() => getMyRank({ data: { period, playerId } }));
 }
