@@ -35,7 +35,7 @@ describe("offline fallback when the game server is unreachable", () => {
 
   it("saving a bots game resolves to null so the page scores it locally", async () => {
     await expect(
-      submitBotsGameSafe({ playerId: "p", name: "Sam", seed: 1, answers: [null, null, null, null, null], ms: [0, 0, 0, 0, 0] }),
+      submitBotsGameSafe({ playerKey: "", playerId: "p", name: "Sam", seed: 1, answers: [null, null, null, null, null], ms: [0, 0, 0, 0, 0] }),
     ).resolves.toBeNull();
   });
 

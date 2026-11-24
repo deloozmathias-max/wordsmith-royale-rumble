@@ -14,6 +14,7 @@ function newGame(fixedSeed?: number) {
 
 type Props = {
   playerId: string;
+  playerKey: string;
   name: string;
   /** Fixed words (challenge link or Daily Royale); otherwise a random game. */
   seed?: number;
@@ -25,7 +26,7 @@ type Props = {
 };
 
 /** A 10-player game against 9 seeded bots, scored by the server (or on this device when offline). */
-export function BotsGame({ playerId, name, seed, challenge = null, daily = null, onPlayAgain, onScore }: Props) {
+export function BotsGame({ playerId, playerKey, name, seed, challenge = null, daily = null, onPlayAgain, onScore }: Props) {
   const [game, setGame] = useState(() => newGame(seed));
   const [mine, setMine] = useState<(Answer | null)[]>(() => Array(ROUNDS).fill(null));
   const [finalScore, setFinalScore] = useState<number | null>(null);
@@ -49,8 +50,9 @@ export function BotsGame({ playerId, name, seed, challenge = null, daily = null,
 
   const onFinished = useCallback(async () => {
     const m = mineRef.current;
-    const res = await submitBotsGameSafe({
+    const res = !playerKey ? null : await submitBotsGameSafe({
       playerId,
+      playerKey,
       name,
       seed: game.seed,
       answers: m.map((a) => a?.answer ?? null),
@@ -69,7 +71,7 @@ export function BotsGame({ playerId, name, seed, challenge = null, daily = null,
     saveLocalScore({ playerId, name, score: local, mode: daily ? "daily" : "bots" });
     onScore?.(local);
     toast("Playing offline — your score is saved on this device.");
-  }, [playerId, name, game.seed, players, botAnswers, daily, onScore]);
+  }, [playerId, playerKey, name, game.seed, players, botAnswers, daily, onScore]);
 
   const playAgain = () => {
     if (onPlayAgain) return onPlayAgain();

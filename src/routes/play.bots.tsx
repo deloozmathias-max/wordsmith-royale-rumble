@@ -42,6 +42,7 @@ function BotsPage() {
     <BotsGame
       key={search.seed ?? "random"}
       playerId={player.id}
+      playerKey={player.key}
       name={player.name}
       {...(search.seed !== undefined
         ? // Fixed-seed games (challenges) start a fresh random game instead of replaying the same words.

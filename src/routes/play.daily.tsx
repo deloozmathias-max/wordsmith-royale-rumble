@@ -53,6 +53,7 @@ function DailyPage() {
   return (
     <BotsGame
       playerId={player.id}
+      playerKey={player.key}
       name={player.name}
       seed={dailySeed(key)}
       daily={{ key, number }}

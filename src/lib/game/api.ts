@@ -40,6 +40,7 @@ export async function judgeSafe(word: string, answer: string): Promise<Judgment>
 
 export function submitBotsGameSafe(data: {
   playerId: string;
+  playerKey: string;
   name: string;
   seed: number;
   answers: (string | null)[];

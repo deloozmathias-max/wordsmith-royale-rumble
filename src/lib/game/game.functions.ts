@@ -54,7 +54,7 @@ export const judgeSynonym = createServerFn({ method: "POST" })
 
 /** Records a finished vs-bots game. The server replays the game to compute the score. */
 export const submitBotsGame = createServerFn({ method: "POST" })
-  .inputValidator((d: { playerId: string; name: string; seed: number; answers: (string | null)[]; ms: (number | null)[]; dailyKey?: string }) => {
+  .inputValidator((d: { playerId: string; playerKey: string; name: string; seed: number; answers: (string | null)[]; ms: (number | null)[]; dailyKey?: string }) => {
     assertUuid(d?.playerId, "player");
     if (!Number.isInteger(d.seed)) throw new Error("Invalid seed");
     const dailyKey = typeof d.dailyKey === "string" ? d.dailyKey.slice(0, 10) : null;
@@ -62,6 +62,7 @@ export const submitBotsGame = createServerFn({ method: "POST" })
     if (!Array.isArray(d.answers) || d.answers.length !== ROUNDS) throw new Error("Invalid answers");
     return {
       playerId: d.playerId,
+      playerKey: readKey(d.playerKey),
       name: String(d.name ?? "").slice(0, 32),
       seed: d.seed,
       answers: d.answers.map((a) => (typeof a === "string" ? a.slice(0, 40) : null)),
@@ -70,6 +71,8 @@ export const submitBotsGame = createServerFn({ method: "POST" })
     };
   })
   .handler(async ({ data }) => {
+    const db = await admin();
+    await assertPlayer(db, data.playerId, data.playerKey);
     const words = pickWords(data.seed);
     const you: Player = { id: data.playerId, name: sanitizePlayerName(data.name), isBot: false };
     const bots = makeBots(data.seed, 9);
@@ -84,7 +87,6 @@ export const submitBotsGame = createServerFn({ method: "POST" })
     }
     const { totals } = scoreGame([you, ...bots], byRound);
     const score = Math.min(MAX_GAME_SCORE, totals[you.id] ?? 0);
-    const db = await admin();
     // Daily Royale: only the player's first game of the day counts.
     const gameKey = data.dailyKey ? `daily:${data.playerId}:${data.dailyKey}` : `bots:${data.playerId}:${data.seed}`;
     if (data.dailyKey) {
