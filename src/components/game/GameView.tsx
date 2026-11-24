@@ -1,3 +1,4 @@
+import { sfx } from "@/lib/sfx";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link } from "@tanstack/react-router";
 import { Check, ClipboardCopy, Crown, Loader2, RotateCcw, Sparkles, Swords, Target, Trophy } from "lucide-react";
@@ -80,6 +81,7 @@ export function GameView(props: Props) {
   useEffect(() => {
     if (phase.kind === "finished" && !finishedRef.current) {
       finishedRef.current = true;
+      sfx.fanfare();
       props.onFinished();
     }
   }, [phase.kind, props]);
@@ -270,6 +272,13 @@ function RoundStage(props: {
   const secs = Math.ceil(msLeft / 1000);
   const pct = Math.max(0, Math.min(100, (msLeft / ROUND_MS) * 100));
   const urgent = msLeft < 5000;
+  const tickRef = useRef(0);
+  useEffect(() => {
+    if (urgent && !lockedAnswer && secs > 0 && tickRef.current !== secs) {
+      tickRef.current = secs;
+      sfx.tick(secs <= 2);
+    }
+  }, [urgent, secs, lockedAnswer]);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -277,15 +286,22 @@ function RoundStage(props: {
     const v = validateSynonym(text);
     if (!v.ok) {
       setError(v.error);
+      sfx.error();
       return;
     }
     setBusy(true);
     setError(null);
     try {
       const res = await props.onSubmit(round, v.value, elapsed);
-      if (res.ok) setLocked(res.answer);
-      else setError(res.error);
+      if (res.ok) {
+        setLocked(res.answer);
+        sfx.lock();
+      } else {
+        setError(res.error);
+        sfx.error();
+      }
     } catch {
+      sfx.error();
       setError("Couldn't send your answer. Try again.");
     } finally {
       setBusy(false);
